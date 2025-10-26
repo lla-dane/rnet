@@ -1,0 +1,9 @@
+[package]
+name = "rnet-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = {workspace = true}
+async-trait = {workspace = true}
+anyhow = {workspace = true}
