@@ -1,10 +1,9 @@
 [workspace]
 members = [
     "core",
-    "transports/tcp",
-    "examples/ping",
-    # "examples/chat",
-    # "examples/echo",
+    "transport/tcp",
+    "transport/udp",
+    "examples/tcp"
 ]
 
 resolver = "2"
@@ -15,12 +14,9 @@ edition = "2021"
 
 [workspace.dependencies]
 tokio = {version = "1", features = ["full"]}
-async-trait = "0.1"
 anyhow = "1"
-thiserror = "2"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-futures = "0.3"
+async-trait = "0.1"
+
 
 [workspace.lints]
 clippy.pedantic = { level = "allow", priority = -1}

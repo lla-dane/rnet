@@ -1,12 +1,16 @@
-use std::net::SocketAddr;
-
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use rnet_core::{Connection, Transport};
+use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
+
+#[derive(Debug)]
+pub struct TcpTransport {
+    listener: TcpListener,
+}
 
 pub struct TcpConn {
     stream: TcpStream,
@@ -16,23 +20,22 @@ pub struct TcpConn {
 impl Connection for TcpConn {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = self.stream.read(buf).await?;
-        Ok(n)
+        return Ok(n);
     }
-
-    async fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let n = self.stream.write(data).await?;
-        Ok(n)
+    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let n = self.stream.write(buf).await?;
+        return Ok(n);
     }
-
     async fn close(&mut self) -> Result<()> {
         self.stream.shutdown().await?;
         Ok(())
     }
 }
 
-#[derive(Debug)]
-pub struct TcpTransport {
-    listener: TcpListener,
+impl TcpConn {
+    pub fn get_ip(&self) -> Result<SocketAddr> {
+        Ok(self.stream.local_addr().unwrap())
+    }
 }
 
 #[async_trait]
@@ -41,10 +44,10 @@ impl Transport for TcpTransport {
 
     async fn listen(addr: &str) -> Result<Self> {
         let listener = TcpListener::bind(addr).await?;
-        Ok(Self { listener })
+        Ok(Self { listener: listener })
     }
 
-    async fn accept(&mut self) -> Result<(Self::Conn, SocketAddr)> {
+    async fn accept(&self) -> Result<(Self::Conn, SocketAddr)> {
         let (stream, addr) = self.listener.accept().await?;
         Ok((TcpConn { stream }, addr))
     }

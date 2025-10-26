@@ -1,2 +1,0 @@
-- Send: transfer ownership of the a value of a particular type to another thread
-- Sync: Indicates it is safer for multiple threads to share immutable references to a value.

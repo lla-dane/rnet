@@ -1,10 +1,11 @@
 [package]
-name = "rnet-transport-tcp"
+name = "ex-tcp"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 tokio = {workspace = true}
-async-trait = {workspace = true}
 anyhow = {workspace = true}
+async-trait = {workspace = true}
+rnet-tcp = {path = "../../transport/tcp"}
 rnet-core = {path = "../../core"}

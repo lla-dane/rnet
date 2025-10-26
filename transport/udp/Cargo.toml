@@ -1,9 +1,8 @@
 [package]
-name = "rnet-core"
+name = "rnet-udp"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 tokio = {workspace = true}
 anyhow = {workspace = true}
-async-trait = {workspace = true}
