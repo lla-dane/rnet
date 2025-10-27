@@ -1,5 +1,5 @@
 [package]
-name = "tcp"
+name = "rnet-core-host"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,7 @@ edition = "2021"
 tokio = {workspace = true}
 anyhow = {workspace = true}
 async-trait = {workspace = true}
-tracing = {workspace = true}
-tracing-subscriber = {workspace = true}
+tracing = "0.1"
+
 rnet-tcp = {path = "../../transport/tcp"}
-rnet-core = {path = "../../core"}
 rnet-core-traits = {path = "../../core/traits"}

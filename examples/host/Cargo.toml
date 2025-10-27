@@ -1,5 +1,5 @@
 [package]
-name = "tcp"
+name = "host"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,3 +12,4 @@ tracing-subscriber = {workspace = true}
 rnet-tcp = {path = "../../transport/tcp"}
 rnet-core = {path = "../../core"}
 rnet-core-traits = {path = "../../core/traits"}
+rnet-core-host = {path = "../../core/host"}

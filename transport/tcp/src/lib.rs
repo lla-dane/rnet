@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
-use rnet_core::{Connection, Transport};
+use rnet_core_traits::transport::{Connection, Transport};
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -35,6 +35,13 @@ impl Connection for TcpConn {
 impl TcpConn {
     pub fn get_ip(&self) -> Result<SocketAddr> {
         Ok(self.stream.local_addr().unwrap())
+    }
+}
+
+impl TcpTransport {
+    pub fn get_local_addr(&self) -> Result<String> {
+        let addr = self.listener.local_addr().unwrap().to_string();
+        Ok(addr)
     }
 }
 
