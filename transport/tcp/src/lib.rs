@@ -1,5 +1,6 @@
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
+use rnet_core_multiaddr::Multiaddr;
 use rnet_core_traits::transport::{Connection, Transport};
 use std::net::SocketAddr;
 use tokio::{
@@ -49,7 +50,11 @@ impl TcpTransport {
 impl Transport for TcpTransport {
     type Conn = TcpConn;
 
-    async fn listen(addr: &str) -> Result<Self> {
+    async fn listen(addr: &Multiaddr) -> Result<Self> {
+        let local_ip = addr.value_for_protocol("ip4").unwrap();
+        let port = addr.value_for_protocol("tcp").unwrap();
+        let addr = format!("{}:{}", local_ip, port);
+
         let listener = TcpListener::bind(addr).await?;
         Ok(Self { listener: listener })
     }

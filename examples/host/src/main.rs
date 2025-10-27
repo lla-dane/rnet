@@ -1,5 +1,6 @@
 use anyhow::{Ok, Result};
-use rnet_core_host::BasicHost;
+use rnet_core_host::basic_host::BasicHost;
+use rnet_core_multiaddr::Multiaddr;
 use std::env;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -13,7 +14,8 @@ async fn main() -> Result<()> {
         .compact()
         .init();
 
-    let host = BasicHost::new("127.0.0.1:0").await.unwrap();
+    let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
+    let host = BasicHost::new(&mut listen_addr).await.unwrap();
     let args: Vec<String> = env::args().collect();
     let mut mode = "server".to_string();
     let mut destination = "";
@@ -24,8 +26,8 @@ async fn main() -> Result<()> {
 
     if mode == "server".to_string() {
         info!(
-            "Run in new terminal: cargo run --bin host {}",
-            host.listen_addr
+            "Run in new terminal: cargo run --bin host {:?}",
+            host.peer_info.listen_addr
         );
         host.run().await.unwrap();
     } else {

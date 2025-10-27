@@ -13,7 +13,7 @@ use rsa::{
 };
 use sha2::{Digest, Sha256};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RsaKeyPair {
     pub private_key: RsaPrivateKey,
     pub public_key: RsaPublicKey,

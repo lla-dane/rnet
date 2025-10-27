@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{bail, Ok, Result};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Multiaddr {
     _addr: String,
     pub components: Vec<Protocol>,
@@ -94,6 +94,61 @@ impl Multiaddr {
         }
 
         Ok(components)
+    }
+
+    pub fn value_for_protocol(&self, proto: &str) -> Option<String> {
+        for protocol in &self.components {
+            match (proto, protocol) {
+                ("ip4", Protocol::Ip4(ip)) => return Some(ip.to_string()),
+                ("ip6", Protocol::Ip6(ip)) => return Some(ip.to_string()),
+                ("tcp", Protocol::Tcp(port)) => return Some(port.to_string()),
+                ("udp", Protocol::Udp(port)) => return Some(port.to_string()),
+                ("p2p", Protocol::P2P(peer_id)) => return Some(peer_id.to_string()),
+                _ => continue,
+            }
+        }
+        None
+    }
+
+    pub fn replace_value_for_protocol(&mut self, proto: &str, value: &str) -> Result<()> {
+        for protocol in &mut self.components {
+            match (proto, protocol) {
+                ("ip4", Protocol::Ip4(ip)) => {
+                    *ip = value
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid IPv4 address"))?;
+                }
+                ("ip6", Protocol::Ip6(ip)) => {
+                    *ip = value
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid IPv6 address"))?;
+                    return Ok(());
+                }
+                ("tcp", Protocol::Tcp(port)) => {
+                    *port = value
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid TCP port"))?;
+                    return Ok(());
+                }
+                ("udp", Protocol::Udp(port)) => {
+                    *port = value
+                        .parse()
+                        .map_err(|_| anyhow::anyhow!("Invalid UDP port"))?;
+                    return Ok(());
+                }
+                ("p2p", Protocol::P2P(peer_id)) => {
+                    *peer_id = value.to_string();
+                    return Ok(());
+                }
+                _ => continue,
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn push_proto(&mut self, proto: Protocol) {
+        self.components.push(proto);
     }
 
     pub fn to_string(&self) -> String {

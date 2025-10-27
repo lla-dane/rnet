@@ -2,6 +2,7 @@ use std::env;
 use std::time::Duration;
 
 use anyhow::{Ok, Result};
+use rnet_core_multiaddr::Multiaddr;
 use rnet_core_traits::transport::{Connection, Transport};
 use rnet_tcp::TcpTransport;
 use tokio::time::sleep;
@@ -13,7 +14,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new("trace"))
         .without_time()
-        .with_target(false) 
+        .with_target(false)
         .compact()
         .init();
     let args: Vec<String> = env::args().collect();
@@ -25,7 +26,8 @@ async fn main() -> Result<()> {
     }
 
     if mode == "server".to_string() {
-        let listener = TcpTransport::listen("127.0.0.1:0").await.unwrap();
+        let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
+        let listener = TcpTransport::listen(&mut listen_addr).await.unwrap();
         debug!(
             "Run in another terminal: cargo run -- {}",
             listener.get_local_addr().unwrap()

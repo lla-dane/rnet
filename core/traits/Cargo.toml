@@ -7,3 +7,4 @@ edition = "2021"
 tokio = {workspace = true}
 anyhow = {workspace = true}
 async-trait = {workspace = true}
+rnet-core-multiaddr = {path = "../../core/multiaddr"}
