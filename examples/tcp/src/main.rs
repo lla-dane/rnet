@@ -50,7 +50,8 @@ async fn main() -> Result<()> {
             });
         }
     } else {
-        let mut stream = TcpTransport::dial(destination).await.unwrap();
+        let multiaddr = Multiaddr::new(destination).unwrap();
+        let mut stream = TcpTransport::dial(&multiaddr).await.unwrap();
         info!("Sending ping");
         stream.write(b"ping").await.unwrap();
 

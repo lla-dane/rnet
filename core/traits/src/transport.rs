@@ -15,5 +15,5 @@ pub trait Transport: Sized {
     type Conn: Connection;
     async fn listen(addr: &Multiaddr) -> Result<Self>;
     async fn accept(&self) -> Result<(Self::Conn, SocketAddr)>;
-    async fn dial(addr: &str) -> Result<Self::Conn>;
+    async fn dial(addr: &Multiaddr) -> Result<Self::Conn>;
 }

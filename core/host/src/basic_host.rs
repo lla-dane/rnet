@@ -27,7 +27,7 @@ impl BasicHost {
         let parts: Vec<&str> = local_addr.split(':').collect();
 
         // ------ LISTEN-ADDR--------
-
+        debug!("Generating RSA keypair");
         let keypair = RsaKeyPair::generate()?;
         let peer_id = keypair.peer_id();
 
@@ -39,7 +39,7 @@ impl BasicHost {
 
         // ----------------------------
 
-        info!("Listener listening on: {:?}", listen_addr);
+        info!("Host listening on: {:?}", listen_addr.to_string());
 
         Ok(BasicHost {
             transport: listener,
@@ -72,7 +72,7 @@ impl BasicHost {
         }
     }
 
-    pub async fn dial(&self, addr: &str) -> Result<()> {
+    pub async fn dial(&self, addr: &Multiaddr) -> Result<()> {
         let mut stream = TcpTransport::dial(addr).await?;
 
         // Now this dial function will complete the handshake

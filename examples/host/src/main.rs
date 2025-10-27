@@ -26,12 +26,13 @@ async fn main() -> Result<()> {
 
     if mode == "server".to_string() {
         info!(
-            "Run in new terminal: cargo run --bin host {:?}",
-            host.peer_info.listen_addr
+            "Run in new terminal: \ncargo run --bin host {:?}",
+            host.peer_info.listen_addr.to_string()
         );
         host.run().await.unwrap();
     } else {
-        host.dial(destination).await?;
+        let multiaddr = Multiaddr::new(destination).unwrap();
+        host.dial(&multiaddr).await?;
     }
 
     Ok(())
