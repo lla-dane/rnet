@@ -1,5 +1,7 @@
+pub mod keys;
+
 use anyhow::{Ok, Result};
-use rnet_core_traits::transport::{Transport, Connection};
+use rnet_core_traits::transport::{Connection, Transport};
 use rnet_tcp::TcpTransport;
 use tracing::{debug, info};
 
@@ -7,6 +9,7 @@ pub struct BasicHost {
     pub transport: TcpTransport,
     pub listen_addr: String,
     // Stream Handlers: hashmap
+    // peer_id
 }
 
 impl BasicHost {
@@ -48,10 +51,10 @@ impl BasicHost {
         // Now this dial function will complete the handshake
         // and return the stream back.
 
-        let mut buf  = [0u8; 32];
+        let mut buf = [0u8; 32];
         let n = stream.read(&mut buf).await.unwrap();
         let received = String::from_utf8_lossy(&buf[..n]).to_string();
-        
+
         if received == "HELLO-FROM-SERVER" {
             stream.write(b"HELLO-FROM-CLIENT").await.unwrap();
             debug!("HANDSHAKE COMPLETE");

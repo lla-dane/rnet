@@ -1,9 +1,7 @@
-use std::env;
-use std::time::Duration;
-
 use anyhow::{Ok, Result};
 use rnet_core_host::BasicHost;
-use tracing::{debug, info};
+use std::env;
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]

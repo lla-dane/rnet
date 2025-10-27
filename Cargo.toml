@@ -3,6 +3,7 @@ members = [
     "core",
     "core/traits",
     "core/host",
+    "core/multiaddr",
     "transport/tcp",
     "transport/udp",
     "examples/tcp",
@@ -21,6 +22,8 @@ anyhow = "1"
 async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rsa = {version = "0.9.8", features = ["sha2"]}
+sha2 = "0.10"
 
 [workspace.lints]
 clippy.pedantic = { level = "allow", priority = -1}
