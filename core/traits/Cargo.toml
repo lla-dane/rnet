@@ -1,5 +1,5 @@
 [package]
-name = "rnet-core-traits"
+name = "rnet-traits"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,4 +7,4 @@ edition = "2021"
 tokio = {workspace = true}
 anyhow = {workspace = true}
 async-trait = {workspace = true}
-rnet-core-multiaddr = {path = "../../core/multiaddr"}
+rnet-multiaddr = {path = "../../core/multiaddr"}

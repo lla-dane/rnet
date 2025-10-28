@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Ok, Result};
-use rnet_core_multiaddr::{Multiaddr, Protocol};
-use rnet_core_traits::transport::Transport;
-use rnet_tcp::TcpTransport;
+use rnet_multiaddr::{Multiaddr, Protocol};
+use rnet_peer::peer_info::PeerInfo;
+use rnet_tcp::{TcpConn, TcpTransport};
+use rnet_traits::transport::Transport;
 use tracing::{debug, info};
 
 use crate::{
@@ -22,14 +23,8 @@ pub struct BasicHost {
     pub multiselect_comm: MultiselectComm,
 }
 
-#[derive(Debug)]
-pub struct PeerInfo {
-    pub peer_id: String,
-    pub listen_addr: Multiaddr,
-}
-
 impl BasicHost {
-    pub async fn new(listen_addr: &mut Multiaddr) -> Result<Self> {
+    pub async fn new(listen_addr: &mut Multiaddr) -> Result<Arc<Self>> {
         let listener = TcpTransport::listen(&listen_addr).await.unwrap();
         let local_addr = listener.get_local_addr().unwrap();
         let parts: Vec<&str> = local_addr.split(':').collect();
@@ -49,52 +44,66 @@ impl BasicHost {
 
         info!("Host listening on: {:?}", listen_addr.to_string());
 
-        Ok(BasicHost {
+        Ok(Arc::new(BasicHost {
             transport: listener,
             key_pair: keypair,
             peer_info: PeerInfo {
                 peer_id,
-                listen_addr: listen_addr.clone(),
+                listen_addr: listen_addr.clone().to_string(),
             },
             peer_store: HashMap::new(),
             stream_handlers: HashMap::new(),
             multiselect: Multiselect {},
             multiselect_comm: MultiselectComm {},
-        })
+        }))
     }
 
-    pub async fn run(self: Arc<Self>) -> Result<()> {
+    pub async fn run(self: &mut Arc<Self>) -> Result<()> {
         loop {
             let (mut stream, _addr) = self.transport.accept().await?;
             info!("New connection received");
 
-            let host = self.clone();
+            let mut host = self.clone();
             tokio::spawn(async move {
                 // Now we have got the stream, next the handshake happens
                 // Lets make a stream handler here
                 // Then we will feed the assigned stream handler the stream
 
-                host.multiselect.handshake(&mut stream).await.unwrap();
+                host.sync(&mut stream, false).await.unwrap();
+
+                // Eventually the syncing will end, and stream will be handed
+                // over to the stream handler from this async task
             });
         }
     }
 
-    pub async fn dial(&self, addr: &Multiaddr) -> Result<()> {
+    pub async fn dial(self: &mut Arc<Self>, addr: &Multiaddr) -> Result<()> {
         let mut stream = TcpTransport::dial(addr).await?;
 
         // Now this dial function will complete the handshake
         // and return the stream back.
 
-        // let mut buf = [0u8; 32];
-        // let n = stream.read(&mut buf).await.unwrap();
-        // let received = String::from_utf8_lossy(&buf[..n]).to_string();
+        self.sync(&mut stream, true).await.unwrap();
 
-        // if received == "HELLO-FROM-SERVER" {
-        //     stream.write(b"HELLO-FROM-CLIENT").await.unwrap();
-        //     debug!("HANDSHAKE COMPLETE");
-        // }
+        Ok(())
+    }
 
-        self.multiselect_comm.negotiate(&mut stream).await.unwrap();
+    pub async fn sync(
+        self: &mut Arc<Self>,
+        stream: &mut TcpConn,
+        is_initiator: bool,
+    ) -> Result<()> {
+        if !is_initiator {
+            self.multiselect
+                .handshake(stream, &self.peer_info)
+                .await
+                .unwrap();
+        } else {
+            self.multiselect_comm
+                .handshake(stream, &self.peer_info)
+                .await
+                .unwrap();
+        }
 
         Ok(())
     }

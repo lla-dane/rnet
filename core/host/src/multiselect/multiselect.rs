@@ -1,23 +1,37 @@
-use anyhow::{Ok, Result};
-use rnet_core::MULTISELECT_CONNECT;
-use rnet_core_traits::transport::Connection;
+use anyhow::{Error, Ok, Result};
+use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
+use rnet_identify::identify_seq;
+use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
+use rnet_traits::transport::Connection;
 use tracing::debug;
 
 #[derive(Debug)]
 pub struct Multiselect {}
 
 impl Multiselect {
-    pub async fn handshake(&self, stream: &mut TcpConn) -> Result<()> {
-        // Multiselect
-        if self.try_select(stream, MULTISELECT_CONNECT).await.unwrap() {
-            debug!("Handshake complete");
-        }
+    pub async fn handshake(&self, stream: &mut TcpConn, peer_info: &PeerInfo) -> Result<()> {
+        // IDENTIFY HANDSHAKE
+
+        self.try_select(stream, MULTISELECT_CONNECT)
+            .await
+            .expect("Multiselect handshake failed");
+
+        self.try_select(stream, IDENTIFY)
+            .await
+            .expect("Identify handshake failed");
+
+        debug!("Handshake complete");
+
+        // Now run the IDENTIFY sequence
+        identify_seq(peer_info, stream, false)
+            .await
+            .expect("Identify handshake failed");
 
         Ok(())
     }
 
-    pub async fn try_select(&self, stream: &mut TcpConn, proto: &str) -> Result<bool> {
+    pub async fn try_select(&self, stream: &mut TcpConn, proto: &str) -> Result<()> {
         stream.write(proto.as_bytes()).await?;
 
         let mut buf = [0u8; 32];
@@ -25,9 +39,9 @@ impl Multiselect {
         let received = String::from_utf8_lossy(&buf[..n]).to_string();
 
         if received.as_str() == proto {
-            return Ok(true);
+            return Ok(());
         }
 
-        Ok(false)
+        return Err(Error::msg("Neogotiation failed"));
     }
 }

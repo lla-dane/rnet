@@ -1,7 +1,7 @@
-use anyhow::{Ok, Result};
+use anyhow::{bail, Ok, Result};
 use async_trait::async_trait;
-use rnet_core_multiaddr::Multiaddr;
-use rnet_core_traits::transport::{Connection, Transport};
+use rnet_multiaddr::Multiaddr;
+use rnet_traits::transport::{Connection, SendReceive, Transport};
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -29,6 +29,43 @@ impl Connection for TcpConn {
     }
     async fn close(&mut self) -> Result<()> {
         self.stream.shutdown().await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl SendReceive for TcpConn {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        let mut total = 0;
+        while total < buf.len() {
+            let n = self.read(&mut buf[total..]).await?;
+            if n == 0 {
+                bail!("Connection closed while reading");
+            }
+            total += n;
+        }
+
+        Ok(())
+    }
+
+    async fn recv_msg(&mut self) -> Result<Vec<u8>> {
+        let mut len_buf = [0u8; 4];
+        self.read_exact(&mut len_buf).await?;
+        let len = u32::from_be_bytes(len_buf) as usize;
+
+        let mut data = vec![0u8; len];
+        self.read_exact(&mut data).await?;
+
+        Ok(data)
+    }
+
+    async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()> {
+        let len = msg.len() as u32;
+        let len_bytes = len.to_be_bytes();
+
+        self.write(&len_bytes).await?;
+        self.write(msg).await?;
+
         Ok(())
     }
 }

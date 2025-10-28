@@ -1,5 +1,5 @@
 [package]
-name = "rnet-core-host"
+name = "rnet-host"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,12 +9,16 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 rsa = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
 
 rnet-tcp = { path = "../../transport/tcp" }
-rnet-core-traits = { path = "../../core/traits" }
-rnet-core-multiaddr = { path = "../../core/multiaddr" }
+rnet-traits = { path = "../../core/traits" }
+rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
-sha2.workspace = true
+rnet-identify = { path = "../../protocols/identify" }
+rnet-peer = { path = "../../core/peer" }
 rand = "0.8"
 hex = "0.4.3"
 rsa-der = "0.3.0"

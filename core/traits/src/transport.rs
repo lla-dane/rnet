@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
 use anyhow::Result;
 use async_trait::async_trait;
-use rnet_core_multiaddr::Multiaddr;
+use rnet_multiaddr::Multiaddr;
+use std::net::SocketAddr;
 
 #[async_trait]
 pub trait Connection {
@@ -16,4 +16,11 @@ pub trait Transport: Sized {
     async fn listen(addr: &Multiaddr) -> Result<Self>;
     async fn accept(&self) -> Result<(Self::Conn, SocketAddr)>;
     async fn dial(addr: &Multiaddr) -> Result<Self::Conn>;
+}
+
+#[async_trait]
+pub trait SendReceive {
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()>;
+    async fn recv_msg(&mut self) -> Result<Vec<u8>>;
+    async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()>;
 }
