@@ -1,17 +1,25 @@
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::{Ok, Result};
 use rnet_core_multiaddr::{Multiaddr, Protocol};
-use rnet_core_traits::transport::{Connection, Transport};
+use rnet_core_traits::transport::Transport;
 use rnet_tcp::TcpTransport;
 use tracing::{debug, info};
 
-use crate::keys::rsa::RsaKeyPair;
+use crate::{
+    keys::rsa::RsaKeyPair,
+    multiselect::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
+};
 
 #[derive(Debug)]
 pub struct BasicHost {
     pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
     pub peer_info: PeerInfo,
-    // Stream Handlers: hashmap
+    pub peer_store: HashMap<String, PeerInfo>,
+    pub stream_handlers: HashMap<String, String>,
+    pub multiselect: Multiselect,
+    pub multiselect_comm: MultiselectComm,
 }
 
 #[derive(Debug)]
@@ -48,26 +56,25 @@ impl BasicHost {
                 peer_id,
                 listen_addr: listen_addr.clone(),
             },
+            peer_store: HashMap::new(),
+            stream_handlers: HashMap::new(),
+            multiselect: Multiselect {},
+            multiselect_comm: MultiselectComm {},
         })
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(self: Arc<Self>) -> Result<()> {
         loop {
             let (mut stream, _addr) = self.transport.accept().await?;
-            debug!("NEW CONNECTION RECEIVED");
+            info!("New connection received");
+
+            let host = self.clone();
             tokio::spawn(async move {
                 // Now we have got the stream, next the handshake happens
                 // Lets make a stream handler here
                 // Then we will feed the assigned stream handler the stream
 
-                stream.write(b"HELLO-FROM-SERVER").await.unwrap();
-                let mut buf = [0u8; 32];
-                let n = stream.read(&mut buf).await.unwrap();
-                let received = String::from_utf8_lossy(&buf[..n]).to_string();
-
-                if received == "HELLO-FROM-CLIENT" {
-                    debug!("HANDSHAKE COMPLETE");
-                }
+                host.multiselect.handshake(&mut stream).await.unwrap();
             });
         }
     }
@@ -78,14 +85,16 @@ impl BasicHost {
         // Now this dial function will complete the handshake
         // and return the stream back.
 
-        let mut buf = [0u8; 32];
-        let n = stream.read(&mut buf).await.unwrap();
-        let received = String::from_utf8_lossy(&buf[..n]).to_string();
+        // let mut buf = [0u8; 32];
+        // let n = stream.read(&mut buf).await.unwrap();
+        // let received = String::from_utf8_lossy(&buf[..n]).to_string();
 
-        if received == "HELLO-FROM-SERVER" {
-            stream.write(b"HELLO-FROM-CLIENT").await.unwrap();
-            debug!("HANDSHAKE COMPLETE");
-        }
+        // if received == "HELLO-FROM-SERVER" {
+        //     stream.write(b"HELLO-FROM-CLIENT").await.unwrap();
+        //     debug!("HANDSHAKE COMPLETE");
+        // }
+
+        self.multiselect_comm.negotiate(&mut stream).await.unwrap();
 
         Ok(())
     }

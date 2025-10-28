@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use rnet_core_host::basic_host::BasicHost;
 use rnet_core_multiaddr::Multiaddr;
-use std::env;
+use std::{env, sync::Arc};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -13,10 +13,10 @@ async fn main() -> Result<()> {
         .with_target(false)
         .compact()
         .init();
+    let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let host = BasicHost::new(&mut listen_addr).await.unwrap();
-    let args: Vec<String> = env::args().collect();
+    let host = Arc::new(BasicHost::new(&mut listen_addr).await.unwrap());
     let mut mode = "server".to_string();
     let mut destination = "";
     if args.len() > 1 {

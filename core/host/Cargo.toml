@@ -13,6 +13,7 @@ rsa = { workspace = true }
 rnet-tcp = { path = "../../transport/tcp" }
 rnet-core-traits = { path = "../../core/traits" }
 rnet-core-multiaddr = { path = "../../core/multiaddr" }
+rnet-core = { path = "../../core" }
 sha2.workspace = true
 rand = "0.8"
 hex = "0.4.3"
