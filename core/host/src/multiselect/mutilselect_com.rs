@@ -1,7 +1,10 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use anyhow::{Error, Ok, Result};
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
-use rnet_peer::peer_info::PeerInfo;
+use rnet_peer::PeerData;
 use rnet_tcp::TcpConn;
 use rnet_traits::transport::Connection;
 use tracing::debug;
@@ -10,7 +13,11 @@ use tracing::debug;
 pub struct MultiselectComm {}
 
 impl MultiselectComm {
-    pub async fn handshake(&self, stream: &mut TcpConn, peer_info: &PeerInfo) -> Result<()> {
+    pub async fn handshake(
+        &self,
+        stream: &mut TcpConn,
+        peer_data: &Arc<Mutex<PeerData>>,
+    ) -> Result<()> {
         // IDENTIFY HANDSHAKE
         self.try_select(stream, MULTISELECT_CONNECT)
             .await
@@ -20,12 +27,12 @@ impl MultiselectComm {
             .await
             .expect("Identify handshake failed");
 
-        debug!("Handshake complete");
-
         // Now run the IDENTIFY sequence
-        identify_seq(peer_info, stream, true)
+        identify_seq(peer_data, stream, true)
             .await
             .expect("Identify handshake failed");
+
+        debug!("Identify handshake complete");
 
         Ok(())
     }

@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let mut host = BasicHost::new(&mut listen_addr).await.unwrap();
+    let host = BasicHost::new(&mut listen_addr).await.unwrap();
     let mut mode = "server".to_string();
     let mut destination = "";
     if args.len() > 1 {
@@ -25,14 +25,19 @@ async fn main() -> Result<()> {
     }
 
     if mode == "server".to_string() {
-        info!(
-            "Run in new terminal: \ncargo run --bin host {:?}",
-            host.peer_info.listen_addr.to_string()
-        );
+        {
+            let peer_data = host.peer_data.lock().await;
+            info!(
+                "Run in new terminal: \ncargo run --bin host {:?}",
+                peer_data.peer_info.listen_addr.to_string()
+            );
+        }
         host.run().await.unwrap();
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
         host.dial(&multiaddr).await?;
+        let peer_data = host.peer_data.lock().await;
+        println!("{:?}", peer_data);
     }
 
     Ok(())

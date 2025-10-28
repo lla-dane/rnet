@@ -1,8 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
 
 use anyhow::{Ok, Result};
 use rnet_multiaddr::{Multiaddr, Protocol};
-use rnet_peer::peer_info::PeerInfo;
+use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
 use rnet_traits::transport::Transport;
 use tracing::{debug, info};
@@ -16,8 +17,7 @@ use crate::{
 pub struct BasicHost {
     pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
-    pub peer_info: PeerInfo,
-    pub peer_store: HashMap<String, PeerInfo>,
+    pub peer_data: Arc<Mutex<PeerData>>,
     pub stream_handlers: HashMap<String, String>,
     pub multiselect: Multiselect,
     pub multiselect_comm: MultiselectComm,
@@ -47,23 +47,25 @@ impl BasicHost {
         Ok(Arc::new(BasicHost {
             transport: listener,
             key_pair: keypair,
-            peer_info: PeerInfo {
-                peer_id,
-                listen_addr: listen_addr.clone().to_string(),
-            },
-            peer_store: HashMap::new(),
+            peer_data: Arc::new(Mutex::new(PeerData {
+                peer_info: PeerInfo {
+                    peer_id,
+                    listen_addr: listen_addr.clone().to_string(),
+                },
+                peer_store: HashMap::new(),
+            })),
             stream_handlers: HashMap::new(),
             multiselect: Multiselect {},
             multiselect_comm: MultiselectComm {},
         }))
     }
 
-    pub async fn run(self: &mut Arc<Self>) -> Result<()> {
+    pub async fn run(self: &Arc<Self>) -> Result<()> {
         loop {
             let (mut stream, _addr) = self.transport.accept().await?;
             info!("New connection received");
 
-            let mut host = self.clone();
+            let host = self.clone();
             tokio::spawn(async move {
                 // Now we have got the stream, next the handshake happens
                 // Lets make a stream handler here
@@ -77,7 +79,7 @@ impl BasicHost {
         }
     }
 
-    pub async fn dial(self: &mut Arc<Self>, addr: &Multiaddr) -> Result<()> {
+    pub async fn dial(self: &Arc<Self>, addr: &Multiaddr) -> Result<()> {
         let mut stream = TcpTransport::dial(addr).await?;
 
         // Now this dial function will complete the handshake
@@ -88,19 +90,15 @@ impl BasicHost {
         Ok(())
     }
 
-    pub async fn sync(
-        self: &mut Arc<Self>,
-        stream: &mut TcpConn,
-        is_initiator: bool,
-    ) -> Result<()> {
+    pub async fn sync(self: &Arc<Self>, stream: &mut TcpConn, is_initiator: bool) -> Result<()> {
         if !is_initiator {
             self.multiselect
-                .handshake(stream, &self.peer_info)
+                .handshake(stream, &self.peer_data)
                 .await
                 .unwrap();
         } else {
             self.multiselect_comm
-                .handshake(stream, &self.peer_info)
+                .handshake(stream, &self.peer_data)
                 .await
                 .unwrap();
         }
