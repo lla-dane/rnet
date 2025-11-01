@@ -74,14 +74,18 @@ impl BasicHost {
         }
     }
 
-    pub async fn dial(self: &Arc<Self>, addr: &Multiaddr) -> Result<()> {
+    pub async fn dial(self: &Arc<Self>, addr: &Multiaddr) -> Result<Arc<Mutex<RawConnection>>> {
         let stream = TcpTransport::dial(addr).await?;
-        self.conn_handler(stream, true).await.unwrap();
+        let conn = self.conn_handler(stream, true).await.unwrap();
 
-        Ok(())
+        Ok(conn)
     }
 
-    pub async fn conn_handler(self: &Arc<Self>, stream: TcpConn, is_initiator: bool) -> Result<()> {
+    pub async fn conn_handler(
+        self: &Arc<Self>,
+        stream: TcpConn,
+        is_initiator: bool,
+    ) -> Result<Arc<Mutex<RawConnection>>> {
         let local_peer_info = {
             let data = self.peer_data.lock().await;
             data.peer_info.clone()
@@ -118,14 +122,16 @@ impl BasicHost {
         info!("New peer connected: {}", peer_info.peer_id);
 
         let host = self.clone();
+        let conn_clone = raw_conn.clone();
         tokio::spawn(async move {
-            host.handle_incoming(raw_conn, peer_info.peer_id.as_str())
+            host.handle_incoming(conn_clone, peer_info.peer_id.as_str())
                 .await
                 .unwrap();
         });
 
-        Ok(())
+        Ok(raw_conn)
     }
+
     async fn handle_incoming(
         self: &Arc<Self>,
         raw_conn: Arc<Mutex<RawConnection>>,

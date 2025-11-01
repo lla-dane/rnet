@@ -41,10 +41,18 @@ async fn main() -> Result<()> {
         }
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
-        host.dial(&multiaddr).await?;
+        let stream = host.dial(&multiaddr).await?;
 
         let peer_data = host.peer_data.lock().await;
         println!("{:?}", peer_data);
+
+        {
+            let mut stream = stream.lock().await;
+            stream
+                .write(&bincode::serialize("hello").unwrap())
+                .await
+                .unwrap();
+        }
     }
     if let (Err(e),) = tokio::join!(handle) {
         return Err(e.into());

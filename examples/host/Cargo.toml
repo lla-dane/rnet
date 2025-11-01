@@ -16,3 +16,4 @@ rnet-host = {path = "../../core/host"}
 rnet-multiaddr = {path = "../../core/multiaddr"}
 rnet-peer = {path = "../../core/peer"}
 rsa = {workspace = true}
+bincode = {workspace = true}
