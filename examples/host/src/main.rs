@@ -24,6 +24,13 @@ async fn main() -> Result<()> {
         destination = &args[1];
     }
 
+    let handle = {
+        let spawn_host = host.clone();
+        tokio::spawn(async move {
+            spawn_host.run().await.unwrap();
+        })
+    };
+
     if mode == "server".to_string() {
         {
             let peer_data = host.peer_data.lock().await;
@@ -32,12 +39,15 @@ async fn main() -> Result<()> {
                 peer_data.peer_info.listen_addr.to_string()
             );
         }
-        host.run().await.unwrap();
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
         host.dial(&multiaddr).await?;
+
         let peer_data = host.peer_data.lock().await;
         println!("{:?}", peer_data);
+    }
+    if let (Err(e),) = tokio::join!(handle) {
+        return Err(e.into());
     }
 
     Ok(())

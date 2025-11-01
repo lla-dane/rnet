@@ -13,8 +13,9 @@ pub struct TcpTransport {
     listener: TcpListener,
 }
 
+#[derive(Debug)]
 pub struct TcpConn {
-    stream: TcpStream,
+    pub stream: TcpStream,
 }
 
 #[async_trait]

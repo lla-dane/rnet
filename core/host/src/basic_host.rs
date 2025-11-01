@@ -11,6 +11,7 @@ use tracing::{debug, info};
 use crate::{
     keys::rsa::RsaKeyPair,
     multiselect::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
+    RawConnection,
 };
 
 #[derive(Debug)]
@@ -18,6 +19,7 @@ pub struct BasicHost {
     pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
     pub peer_data: Arc<Mutex<PeerData>>,
+    pub connections: Arc<Mutex<HashMap<String, Arc<Mutex<RawConnection>>>>>,
     pub stream_handlers: HashMap<String, String>,
     pub multiselect: Multiselect,
     pub multiselect_comm: MultiselectComm,
@@ -54,6 +56,7 @@ impl BasicHost {
                 },
                 peer_store: HashMap::new(),
             })),
+            connections: Arc::new(Mutex::new(HashMap::new())),
             stream_handlers: HashMap::new(),
             multiselect: Multiselect {},
             multiselect_comm: MultiselectComm {},
@@ -62,46 +65,102 @@ impl BasicHost {
 
     pub async fn run(self: &Arc<Self>) -> Result<()> {
         loop {
-            let (mut stream, _addr) = self.transport.accept().await?;
-            info!("New connection received");
+            let (stream, _addr) = self.transport.accept().await?;
 
             let host = self.clone();
             tokio::spawn(async move {
-                // Now we have got the stream, next the handshake happens
-                // Lets make a stream handler here
-                // Then we will feed the assigned stream handler the stream
-
-                host.sync(&mut stream, false).await.unwrap();
-
-                // Eventually the syncing will end, and stream will be handed
-                // over to the stream handler from this async task
+                host.conn_handler(stream, false).await.unwrap();
             });
         }
     }
 
     pub async fn dial(self: &Arc<Self>, addr: &Multiaddr) -> Result<()> {
-        let mut stream = TcpTransport::dial(addr).await?;
-
-        // Now this dial function will complete the handshake
-        // and return the stream back.
-
-        self.sync(&mut stream, true).await.unwrap();
+        let stream = TcpTransport::dial(addr).await?;
+        self.conn_handler(stream, true).await.unwrap();
 
         Ok(())
     }
 
-    pub async fn sync(self: &Arc<Self>, stream: &mut TcpConn, is_initiator: bool) -> Result<()> {
-        if !is_initiator {
-            self.multiselect
-                .handshake(stream, &self.peer_data)
-                .await
-                .unwrap();
+    pub async fn conn_handler(self: &Arc<Self>, stream: TcpConn, is_initiator: bool) -> Result<()> {
+        let local_peer_info = {
+            let data = self.peer_data.lock().await;
+            data.peer_info.clone()
+        };
+
+        // security upgrade
+        // Identify \/
+        // stream_multiplexer upgrade
+        // Active protocol negotiation
+
+        let raw_conn = if !is_initiator {
+            self.multiselect.handshake(&local_peer_info, stream).await?
         } else {
             self.multiselect_comm
-                .handshake(stream, &self.peer_data)
+                .handshake(&local_peer_info, stream)
+                .await?
+        };
+
+        let peer_info = {
+            let conn = raw_conn.lock().await;
+            conn.peer_info().clone()
+        };
+
+        {
+            let mut peer_data = self.peer_data.lock().await;
+            peer_data
+                .peer_store
+                .insert(peer_info.peer_id.clone(), peer_info.clone());
+
+            let mut connections = self.connections.lock().await;
+            connections.insert(peer_info.peer_id.clone(), raw_conn.clone());
+        }
+
+        info!("New peer connected: {}", peer_info.peer_id);
+
+        let host = self.clone();
+        tokio::spawn(async move {
+            host.handle_incoming(raw_conn, peer_info.peer_id.as_str())
                 .await
                 .unwrap();
+        });
+
+        Ok(())
+    }
+    async fn handle_incoming(
+        self: &Arc<Self>,
+        raw_conn: Arc<Mutex<RawConnection>>,
+        peer_id: &str,
+    ) -> Result<()> {
+        loop {
+            let mut conn = raw_conn.lock().await;
+            match conn.read().await {
+                std::result::Result::Ok(buf) => {
+                    if buf.is_empty() {
+                        break;
+                    }
+
+                    info!("Received a msg");
+                }
+
+                Err(err) => {
+                    debug!("read error from {}: {:?}", peer_id, err);
+                    break;
+                }
+            }
         }
+
+        self.on_disconnect(&peer_id).await?;
+        Ok(())
+    }
+
+    async fn on_disconnect(self: &Arc<Self>, peer_id: &str) -> Result<()> {
+        debug!("Peer disconnected: {}", peer_id);
+
+        let mut peer_data = self.peer_data.lock().await;
+        peer_data.peer_store.remove(peer_id);
+
+        let mut connections = self.connections.lock().await;
+        connections.remove(peer_id);
 
         Ok(())
     }

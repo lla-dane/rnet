@@ -1,49 +1,54 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use anyhow::{Error, Ok, Result};
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
-use rnet_peer::PeerData;
+use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
-use rnet_traits::transport::Connection;
+use rnet_traits::transport::SendReceive;
+use tokio::sync::Mutex;
 use tracing::debug;
 
+use crate::RawConnection;
 #[derive(Debug)]
 pub struct MultiselectComm {}
 
 impl MultiselectComm {
     pub async fn handshake(
         &self,
-        stream: &mut TcpConn,
-        peer_data: &Arc<Mutex<PeerData>>,
-    ) -> Result<()> {
+        local_peer_info: &PeerInfo,
+        mut stream: TcpConn,
+    ) -> Result<Arc<Mutex<RawConnection>>> {
         // IDENTIFY HANDSHAKE
-        self.try_select(stream, MULTISELECT_CONNECT)
+        self.try_select(&mut stream, MULTISELECT_CONNECT)
             .await
             .expect("Multiselect handshake failed");
 
-        self.try_select(stream, IDENTIFY)
+        self.try_select(&mut stream, IDENTIFY)
             .await
             .expect("Identify handshake failed");
 
         // Now run the IDENTIFY sequence
-        identify_seq(peer_data, stream, true)
+        let peer_info = identify_seq(local_peer_info, &mut stream, true)
             .await
             .expect("Identify handshake failed");
 
         debug!("Identify handshake complete");
 
-        Ok(())
+        Ok(Arc::new(Mutex::new(RawConnection {
+            stream,
+            peer_info,
+            is_initiator: false,
+        })))
     }
 
     pub async fn try_select(&self, stream: &mut TcpConn, proto: &str) -> Result<()> {
-        let mut buf = [0u8; 32];
-        let n = stream.read(&mut buf).await.unwrap();
-        let received = String::from_utf8_lossy(&buf[..n]).to_string();
+        let msg_bytes = stream.recv_msg().await.unwrap();
+        let received: String = bincode::deserialize(&msg_bytes)?;
 
         if received.as_str() == proto {
-            stream.write(proto.as_bytes()).await.unwrap();
+            let proto_bytes = bincode::serialize(&proto)?;
+            stream.send_bytes(&proto_bytes).await.unwrap();
             return Ok(());
         }
 
