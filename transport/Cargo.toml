@@ -1,0 +1,12 @@
+[package]
+name = "rnet-transport"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = {workspace = true}
+anyhow = {workspace = true}
+async-trait = {workspace = true}
+rnet-tcp = { path = "../transport/tcp" }
+rnet-peer = { path = "../core/peer" }
+rnet-traits = { path = "../core/traits" }

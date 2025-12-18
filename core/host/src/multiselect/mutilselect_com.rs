@@ -1,15 +1,12 @@
-use std::sync::Arc;
-
 use anyhow::{Error, Ok, Result};
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
 use rnet_traits::transport::SendReceive;
-use tokio::sync::Mutex;
+use rnet_transport::RawConnection;
 use tracing::debug;
 
-use crate::RawConnection;
 #[derive(Debug)]
 pub struct MultiselectComm {}
 
@@ -18,7 +15,7 @@ impl MultiselectComm {
         &self,
         local_peer_info: &PeerInfo,
         mut stream: TcpConn,
-    ) -> Result<Arc<Mutex<RawConnection>>> {
+    ) -> Result<RawConnection> {
         // IDENTIFY HANDSHAKE
         self.try_select(&mut stream, MULTISELECT_CONNECT)
             .await
@@ -35,11 +32,11 @@ impl MultiselectComm {
 
         debug!("Identify handshake complete");
 
-        Ok(Arc::new(Mutex::new(RawConnection {
+        Ok(RawConnection {
             stream,
             peer_info,
             is_initiator: false,
-        })))
+        })
     }
 
     pub async fn try_select(&self, stream: &mut TcpConn, proto: &str) -> Result<()> {

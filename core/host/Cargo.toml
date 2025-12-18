@@ -3,6 +3,8 @@ name = "rnet-host"
 version = "0.1.0"
 edition = "2021"
 
+
+
 [dependencies]
 tokio = { workspace = true }
 anyhow = { workspace = true }
@@ -19,6 +21,9 @@ rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
 rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
+rnet-mplex = { path = "../../muxer/mplex" }
+rnet-transport = { path = "../../transport" }
+
 rand = "0.8"
 hex = "0.4.3"
 rsa-der = "0.3.0"

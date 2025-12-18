@@ -20,7 +20,7 @@ rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
 rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
-rnet-host = { path = "../../core/host" }
+rnet-transport = { path = "../../transport" }
 rand = "0.8"
 hex = "0.4.3"
 rsa-der = "0.3.0"

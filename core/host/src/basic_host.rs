@@ -1,17 +1,25 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use rnet_mplex::mplex::{build_frame, MuxedConn};
+use rnet_transport::RawConnection;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
+use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
+    Mutex,
+};
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
 use rnet_traits::transport::Transport;
-use tracing::{debug, info};
+use std::result::Result::Ok;
+use tracing::{debug, info, warn};
 
 use crate::{
     keys::rsa::RsaKeyPair,
     multiselect::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
-    RawConnection,
 };
 
 #[derive(Debug)]
@@ -19,10 +27,11 @@ pub struct BasicHost {
     pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
     pub peer_data: Arc<Mutex<PeerData>>,
-    pub connections: Arc<Mutex<HashMap<String, Arc<Mutex<RawConnection>>>>>,
+    pub connections: Arc<Mutex<HashMap<String, Sender<Vec<u8>>>>>,
     pub stream_handlers: HashMap<String, String>,
     pub multiselect: Multiselect,
     pub multiselect_comm: MultiselectComm,
+    pub handlers: HashMap<String, String>,
 }
 
 impl BasicHost {
@@ -42,7 +51,7 @@ impl BasicHost {
 
         listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
-        // ----------------------------
+        // ---------------------------
 
         info!("Host listening on: {:?}", listen_addr.to_string());
 
@@ -60,6 +69,7 @@ impl BasicHost {
             stream_handlers: HashMap::new(),
             multiselect: Multiselect {},
             multiselect_comm: MultiselectComm {},
+            handlers: HashMap::new(),
         }))
     }
 
@@ -74,18 +84,36 @@ impl BasicHost {
         }
     }
 
-    pub async fn dial(self: &Arc<Self>, addr: &Multiaddr) -> Result<Arc<Mutex<RawConnection>>> {
+    pub async fn connect(self: &Arc<Self>, addr: &Multiaddr) -> Result<()> {
         let stream = TcpTransport::dial(addr).await?;
-        let conn = self.conn_handler(stream, true).await.unwrap();
+        let _peer_info = self.conn_handler(stream, true).await.unwrap();
 
-        Ok(conn)
+        Ok(())
+    }
+
+    pub async fn new_stream(self: &Arc<Self>, peer_id: String, _protocols: Vec<String>) {
+
+        let mut connections = self.connections.lock().await;
+        let muxed_conn = connections
+            .get_mut(&peer_id)
+            .ok_or_else(|| anyhow::anyhow!("No such peer"))
+            .expect("Make a connection first")
+            .clone();
+
+        // Send the new stream header to the client_receiver
+        let new_stream_frame = build_frame(
+            0,
+            rnet_mplex::headers::MuxedStreamFlag::NewStream,
+            &b"Initiate".to_vec(),
+        );
+        muxed_conn.send(new_stream_frame).await.unwrap();
     }
 
     pub async fn conn_handler(
         self: &Arc<Self>,
         stream: TcpConn,
         is_initiator: bool,
-    ) -> Result<Arc<Mutex<RawConnection>>> {
+    ) -> Result<PeerInfo> {
         let local_peer_info = {
             let data = self.peer_data.lock().await;
             data.peer_info.clone()
@@ -96,6 +124,7 @@ impl BasicHost {
         // stream_multiplexer upgrade
         // Active protocol negotiation
 
+        // -------IDENTIFY-------
         let raw_conn = if !is_initiator {
             self.multiselect.handshake(&local_peer_info, stream).await?
         } else {
@@ -104,10 +133,26 @@ impl BasicHost {
                 .await?
         };
 
-        let peer_info = {
-            let conn = raw_conn.lock().await;
-            conn.peer_info().clone()
-        };
+        let peer_info = raw_conn.peer_info();
+        info!("New peer connected: {}", peer_info.peer_id);
+
+        // ------MPSC-CHANNELS-----
+        let (tx1, rx1) = mpsc::channel::<Vec<u8>>(100);
+        let (tx2, rx2) = mpsc::channel::<Vec<u8>>(100);
+
+        // -------MPEX-UPDATE-----
+        let mut muxed_conn = MuxedConn::new(
+            is_initiator,
+            peer_info.clone(),
+            self.handlers.clone(),
+            tx2.clone(),
+            rx1,
+        );
+
+        info!("CONNECTION updated to MPLEX");
+
+        let host = self.clone();
+        let peer = peer_info.clone();
 
         {
             let mut peer_data = self.peer_data.lock().await;
@@ -116,41 +161,57 @@ impl BasicHost {
                 .insert(peer_info.peer_id.clone(), peer_info.clone());
 
             let mut connections = self.connections.lock().await;
-            connections.insert(peer_info.peer_id.clone(), raw_conn.clone());
+            connections.insert(peer_info.peer_id.clone(), tx1.clone());
         }
 
-        info!("New peer connected: {}", peer_info.peer_id);
-
-        let host = self.clone();
-        let conn_clone = raw_conn.clone();
+        // tokio spawn the handle_incoming of muxed connection
         tokio::spawn(async move {
-            host.handle_incoming(conn_clone, peer_info.peer_id.as_str())
+            muxed_conn.conn_handler().await;
+        });
+
+        tokio::spawn(async move {
+            host.handle_incoming(raw_conn, peer.peer_id.as_str(), rx2, tx1)
                 .await
                 .unwrap();
         });
 
-        Ok(raw_conn)
+        Ok(peer_info)
     }
 
-    async fn handle_incoming(
+    pub async fn handle_incoming(
         self: &Arc<Self>,
-        raw_conn: Arc<Mutex<RawConnection>>,
+        mut raw_conn: RawConnection,
         peer_id: &str,
+        mut receiver: Receiver<Vec<u8>>,
+        sender: Sender<Vec<u8>>,
     ) -> Result<()> {
-        loop {
-            let mut conn = raw_conn.lock().await;
-            match conn.read().await {
-                std::result::Result::Ok(buf) => {
-                    if buf.is_empty() {
-                        break;
-                    }
+        let mut write_queue = VecDeque::<Vec<u8>>::new();
 
-                    info!("Received a msg");
+        loop {
+            tokio::select! {
+
+                Some(data) = receiver.recv() => {
+                    write_queue.push_back(data);
                 }
 
-                Err(err) => {
-                    debug!("read error from {}: {:?}", peer_id, err);
-                    break;
+                frame = raw_conn.read() => {
+                    match frame {
+                        Ok(frames) => {
+                            sender.send(frames).await?;
+                        }
+                        Err(e) => {
+                            warn!("READ FAILED, DISCONNECTION: {:?}", e);
+                            break;
+                        }
+                    }
+                }
+
+                _ = async {}, if !write_queue.is_empty() => {
+                    let data = write_queue.pop_front().unwrap();
+                    if let Err(e) = raw_conn.write(&data).await {
+                        warn!("WRITE FAILED, DISCONNECTION: {:?}", e);
+                        break;
+                    }
                 }
             }
         }
@@ -160,13 +221,13 @@ impl BasicHost {
     }
 
     async fn on_disconnect(self: &Arc<Self>, peer_id: &str) -> Result<()> {
-        debug!("Peer disconnected: {}", peer_id);
 
         let mut peer_data = self.peer_data.lock().await;
         peer_data.peer_store.remove(peer_id);
 
         let mut connections = self.connections.lock().await;
         connections.remove(peer_id);
+        debug!("Peer disconnected: {}", peer_id);
 
         Ok(())
     }

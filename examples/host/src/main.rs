@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use rnet_host::basic_host::BasicHost;
 use rnet_multiaddr::Multiaddr;
-use std::env;
+use std::{env, thread, time::Duration};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -35,24 +35,21 @@ async fn main() -> Result<()> {
         {
             let peer_data = host.peer_data.lock().await;
             info!(
-                "Run in new terminal: \ncargo run --bin host {:?}",
+                "Run in new terminal: \ncargo run {:?}",
                 peer_data.peer_info.listen_addr.to_string()
             );
         }
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
-        let stream = host.dial(&multiaddr).await?;
+        host.connect(&multiaddr).await?;
 
-        let peer_data = host.peer_data.lock().await;
-        println!("{:?}", peer_data);
+        thread::sleep(Duration::from_secs(2));
 
-        {
-            let mut stream = stream.lock().await;
-            stream
-                .write(&bincode::serialize("hello").unwrap())
-                .await
-                .unwrap();
-        }
+        host.new_stream(
+            multiaddr.value_for_protocol("p2p").unwrap(),
+            vec![String::from("hello")],
+        )
+        .await
     }
     if let (Err(e),) = tokio::join!(handle) {
         return Err(e.into());

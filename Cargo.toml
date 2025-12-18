@@ -8,12 +8,14 @@ members = [
     "protocols",
     "protocols/ping",
     "protocols/identify",
+    "transport",
     "transport/tcp",
     "transport/udp",
     "muxer/mplex",
     "examples/tcp",
     "examples/host",
 ]
+
 
 resolver = "2"
 

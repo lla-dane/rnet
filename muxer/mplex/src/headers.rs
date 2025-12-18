@@ -1,53 +1,34 @@
-use anyhow::{Ok, Result};
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MuxedStreamFlag {
-    NewStreamInitiator,
-    NewStreamReceiver,
-    MessageInitiator,
-    MessageReceiver,
-    CloseInitiator,
-    CloseReceiver,
+    NewStream,
+    MessageResponse,
+    MessageRequest,
+    CloseStream,
+    HandshakeReq,
+    HandshakeRes,
 }
 
 impl MuxedStreamFlag {
-    fn tag(&self) -> u8 {
+    pub fn tag(&self) -> u8 {
         match self {
-            Self::NewStreamInitiator => 0,
-            Self::NewStreamReceiver => 1,
-            Self::MessageReceiver => 2,
-            Self::MessageInitiator => 3,
-            Self::CloseReceiver => 4,
-            Self::CloseInitiator => 5,
+            Self::NewStream => 1,
+            Self::MessageResponse => 2,
+            Self::MessageRequest => 3,
+            Self::CloseStream => 4,
+            Self::HandshakeReq => 5,
+            Self::HandshakeRes => 6,
         }
     }
 
-    fn from_tag(tag: u8) -> Option<Self> {
+    pub fn from_tag(tag: u8) -> Option<Self> {
         match tag {
-            0 => Some(Self::NewStreamInitiator),
-            1 => Some(Self::NewStreamReceiver),
-            2 => Some(Self::MessageReceiver),
-            3 => Some(Self::MessageInitiator),
-            4 => Some(Self::CloseReceiver),
-            5 => Some(Self::CloseInitiator),
+            1 => Some(Self::NewStream),
+            2 => Some(Self::MessageResponse),
+            3 => Some(Self::MessageRequest),
+            4 => Some(Self::CloseStream),
+            5 => Some(Self::HandshakeReq),
+            6 => Some(Self::HandshakeRes),
             _ => None,
         }
     }
-}
-
-pub fn create_header(stream_id: u32, flag: MuxedStreamFlag) -> Vec<u8> {
-    let header_val = (stream_id << 3) | (flag.tag() as u32);
-
-    let mut buf = [0u8; 5];
-    let encoded = unsigned_varint::encode::u32(header_val, &mut buf);
-
-    encoded.to_vec()
-}
-
-pub fn process_header(payload: &Vec<u8>) -> Result<()> {
-    // decode varint header
-    let (header_val, consumed) = unsigned_varint::decode::u32(&payload.as_slice())
-
-
-    Ok(())
 }
