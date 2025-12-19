@@ -14,7 +14,7 @@ use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
 use rnet_traits::transport::Transport;
 use std::result::Result::Ok;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::{
     headers::{build_host_frame, process_host_frame, HostMpscTxFlag},
@@ -185,22 +185,23 @@ impl BasicHost {
                 .await?
         };
 
+        // ------TODO:-RUN-STREAM-MUXER-UPDATE-----
+
         let remote_peer_info = raw_conn.peer_info();
         info!("New peer connected: {}", remote_peer_info.peer_id);
 
-        // ------MPSC-CHANNELS-----
-        let (mpsc_tx, mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-
         // -------MPEX-UPDATE-----
+        let (muxed_conn_mpsc_tx, muxed_conn_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let muxed_conn = MuxedConn::new(
             raw_conn,
             is_initiator,
             remote_peer_info.clone(),
             self.handlers.clone(),
-            mpsc_tx.clone(),
-            mpsc_rx,
+            muxed_conn_mpsc_tx.clone(),
+            muxed_conn_mpsc_rx,
         );
 
+        // ----UPDATE-PEER-STORE----
         {
             let mut peer_data = self.peer_data.lock().await;
             peer_data
@@ -208,9 +209,10 @@ impl BasicHost {
                 .insert(remote_peer_info.peer_id.clone(), remote_peer_info.clone());
 
             let mut connections = self.connections.lock().await;
-            connections.insert(remote_peer_info.peer_id.clone(), mpsc_tx.clone());
+            connections.insert(remote_peer_info.peer_id.clone(), muxed_conn_mpsc_tx.clone());
         }
 
+        //----SPAWN-MUXED-CONN-HANDLER----
         let host_mpsc_tx = self.host_mpsc_tx.clone();
         tokio::spawn(async move {
             host_mpsc_tx
@@ -228,7 +230,7 @@ impl BasicHost {
 
         let mut connections = self.connections.lock().await;
         connections.remove(peer_id);
-        debug!("Peer disconnected: {}", peer_id);
+        warn!("Peer disconnected: {}", peer_id);
 
         Ok(())
     }
