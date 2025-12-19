@@ -1,40 +1,45 @@
-use anyhow::{Error, Ok, Result};
-use rnet_peer::peer_info::PeerInfo;
-use std::collections::HashMap;
-use tokio::sync::mpsc::{self, Receiver, Sender};
-use tracing::{debug, info};
-
 use crate::{headers::MuxedStreamFlag, mplex_stream::MuxedStream};
+use anyhow::{Error, Result};
+use rnet_peer::peer_info::PeerInfo;
+use rnet_transport::RawConnection;
+use std::future::Future;
+use std::pin::Pin;
+use std::result::Result::Ok;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
-#[derive(Debug)]
+pub type AsyncHandler =
+    Arc<dyn Fn(MuxedStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+
 pub struct MuxedConn {
+    pub raw_conn: RawConnection,
     pub remote_peer_info: PeerInfo,
     pub is_initiator: bool,
     pub streams: HashMap<u32, Sender<Vec<u8>>>,
     _stream_counter: u32,
-    handlers: HashMap<String, String>,
-    pub conn_sender: Sender<Vec<u8>>,
-    pub conn_receiver: Receiver<Vec<u8>>,
+    handlers: HashMap<String, AsyncHandler>,
+    pub mpsc_tx: Sender<Vec<u8>>,
+    pub mpsc_rx: Receiver<Vec<u8>>,
 }
-
-// There needs to be a protocol -> Handler mapping for streams
 
 impl MuxedConn {
     pub fn new(
+        raw_conn: RawConnection,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, String>,
-        conn_sender: Sender<Vec<u8>>,
-        conn_receiver: Receiver<Vec<u8>>,
+        handlers: HashMap<String, AsyncHandler>,
+        mpsc_tx: Sender<Vec<u8>>,
+        mpsc_rx: Receiver<Vec<u8>>,
     ) -> MuxedConn {
         MuxedConn {
+            raw_conn,
             remote_peer_info: remote_peer,
             is_initiator,
             streams: HashMap::new(),
             _stream_counter: 0,
             handlers,
-            conn_sender,
-            conn_receiver,
+            mpsc_tx,
+            mpsc_rx,
         }
     }
 
@@ -48,24 +53,22 @@ impl MuxedConn {
         let (_, remaining) = unsigned_varint::decode::u32(&frames.as_slice()).unwrap();
         let (_, payload_after_len) = unsigned_varint::decode::usize(remaining).unwrap();
         let payload_extracted = payload_after_len[..payload_len].to_vec();
-        let protocols: Vec<String> = self.handlers.keys().cloned().collect();
 
         match flag {
             MuxedStreamFlag::NewStream => {
                 // Create a new stream
-                let (tx, rx) = mpsc::channel::<Vec<u8>>(100);
+                let (muxed_stream_mpsc_tx, muxed_stream_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
                 if !self.is_initiator {
-                    let mut stream = MuxedStream::new(
-                        self.conn_sender.clone(),
-                        rx,
+                    let stream = MuxedStream::new(
+                        self.mpsc_tx.clone(),
+                        muxed_stream_mpsc_rx,
                         stream_id,
                         self.is_initiator,
                         self.remote_peer_info.clone(),
-                        protocols,
+                        self.handlers.clone(),
                     );
-                    self.streams.insert(stream_id, tx.clone());
-                    info!("[SERVER] MUXED-CONN: NEW STREAM {}", stream_id);
+                    self.streams.insert(stream_id, muxed_stream_mpsc_tx.clone());
 
                     // SERVER HANDSHAKE PROCEDURE
                     tokio::spawn(async move {
@@ -73,60 +76,57 @@ impl MuxedConn {
                     });
                 } else {
                     self._stream_counter += 1;
-                    let mut stream = MuxedStream::new(
-                        self.conn_sender.clone(),
-                        rx,
+                    let stream = MuxedStream::new(
+                        self.mpsc_tx.clone(),
+                        muxed_stream_mpsc_rx,
                         self._stream_counter,
                         self.is_initiator,
                         self.remote_peer_info.clone(),
-                        protocols,
+                        self.handlers.clone(),
                     );
-                    self.streams.insert(self._stream_counter, tx.clone());
+                    self.streams
+                        .insert(self._stream_counter, muxed_stream_mpsc_tx.clone());
 
+                    // INITIATOR-FRAME -> SERVER
                     let initiator_frame = build_frame(
                         self._stream_counter,
                         MuxedStreamFlag::NewStream,
-                        &b"Initiate".to_vec(),
+                        &b"".to_vec(),
                     );
-                    self.conn_sender.send(initiator_frame).await.unwrap();
-                    info!("[CLIENT] MUXED-CONN: NEW STREAM {}", self._stream_counter);
+                    self.write(initiator_frame).await.unwrap();
 
                     // CLIENT HANDSHAKE PROCEDURE
                     tokio::spawn(async move {
-                        stream.client_handshake().await.unwrap();
+                        stream.client_handshake(payload_extracted).await.unwrap();
                     });
                 }
-
-                // Carry out protocol negotiation
             }
 
             MuxedStreamFlag::MessageResponse | MuxedStreamFlag::MessageRequest => {
-                let muxed_stream_tx = self
+                let muxed_stream_mpsc_tx = self
                     .streams
                     .get_mut(&stream_id)
                     .expect("invalid stream-id")
                     .clone();
-                muxed_stream_tx.send(payload_extracted).await.unwrap();
+                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
             }
 
             MuxedStreamFlag::HandshakeRes => {
-                debug!("[CLIENT]: HANDSHAKE RESPONSE CAME");
-                let muxed_stream_tx = self
+                let muxed_stream_mpsc_tx = self
                     .streams
                     .get_mut(&stream_id)
                     .expect("invalid stream-id")
                     .clone();
-                muxed_stream_tx.send(payload_extracted).await.unwrap();
+                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
             }
 
             MuxedStreamFlag::HandshakeReq => {
-                debug!("[SERVER]: HANDSHAKE REQUEST CAME");
-                let muxed_stream_tx = self
+                let muxed_stream_mpsc_tx = self
                     .streams
                     .get_mut(&stream_id)
                     .expect("invalid stream-id")
                     .clone();
-                muxed_stream_tx.send(payload_extracted).await.unwrap();
+                muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
             }
 
             MuxedStreamFlag::CloseStream => {
@@ -138,21 +138,11 @@ impl MuxedConn {
     }
 
     pub async fn write(&self, msg: Vec<u8>) -> Result<()> {
-        if let Err(_) = self.conn_sender.send(msg).await {
-            return Err(Error::msg("Receiver dropped"));
+        if let Err(e) = self.mpsc_tx.send(msg).await {
+            return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
         }
 
         Ok(())
-    }
-
-    pub async fn conn_handler(&mut self) {
-        loop {
-            tokio::select! {
-                Some(frames) = self.conn_receiver.recv() => {
-                    self.handle_incoming(frames).await.unwrap();
-                }
-            }
-        }
     }
 }
 
