@@ -2,8 +2,6 @@ use rnet_mplex::mplex::{build_frame, AsyncHandler, MuxedConn};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
-    thread,
-    time::Duration,
 };
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
@@ -145,7 +143,6 @@ impl BasicHost {
     pub async fn connect(&self, addr: &Multiaddr) -> Result<()> {
         let stream = TcpTransport::dial(addr).await?;
         self.conn_handler(stream, true).await.unwrap();
-        thread::sleep(Duration::from_secs(2));
 
         Ok(())
     }

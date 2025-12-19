@@ -1,10 +1,10 @@
 [package]
-name = "host"
+name = "ping"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "host"
+name = "ping"
 path = "src/main.rs"
 
 [dependencies]

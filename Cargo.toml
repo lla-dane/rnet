@@ -13,7 +13,7 @@ members = [
     "transport/udp",
     "muxer/mplex",
     "examples/tcp",
-    "examples/host",
+    "examples/ping",
 ]
 
 

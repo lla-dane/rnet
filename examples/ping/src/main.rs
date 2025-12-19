@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
 
     if mode == "server".to_string() {
         info!(
-            "Run in new terminal: \ncargo run {:?}",
+            "Run in new terminal: \ncargo run --bin ping {:?}",
             peer_data.peer_info.listen_addr.to_string()
         );
     } else {
