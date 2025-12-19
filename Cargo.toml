@@ -6,7 +6,6 @@ members = [
     "core/multiaddr",
     "core/peer",
     "protocols",
-    "protocols/ping",
     "protocols/identify",
     "transport",
     "transport/tcp",
