@@ -6,7 +6,7 @@ use std::{
 use anyhow::Result;
 use prost::Message as ProstMessage;
 use rnet_mplex::mplex_stream::MuxedStream;
-use rnet_proto::floodsub::Rpc;
+use rnet_proto::floodsub::{rpc::SubOpts, Rpc};
 use tokio::sync::{
     mpsc::{self, Sender},
     Mutex,
@@ -24,6 +24,7 @@ pub struct FloodSub {
     host_mpsc_tx: Sender<Vec<u8>>,
     last_seen_cache: HashMap<Vec<u8>, u8>,
     peerstore: Arc<Mutex<FloosubPeers>>,
+    subscribed_topic_api: HashMap<String, Sender<Vec<u8>>>,
 }
 
 impl FloodSub {
@@ -35,6 +36,7 @@ impl FloodSub {
                 peer_topics: HashMap::new(),
                 peers: HashMap::new(),
             })),
+            subscribed_topic_api: HashMap::new(),
         })
     }
 
@@ -63,12 +65,11 @@ impl FloodSub {
         let (floodsub_peer_mpsc_tx, mut floodsub_peer_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let mut notification = VecDeque::<Vec<u8>>::new();
 
-        {
-            let mut peerstore = self.peerstore.lock().await;
-            peerstore
-                .peers
-                .insert(peer_id.clone(), floodsub_peer_mpsc_tx);
-        }
+        // We received a new peer here, so send a hello packet too,
+        // to notify them of our subscribed topics
+        self.handle_new_peer(floodsub_peer_mpsc_tx, peer_id.clone())
+            .await
+            .unwrap();
 
         loop {
             tokio::select! {
@@ -100,6 +101,12 @@ impl FloodSub {
             }
         }
 
+        // TODO: handle dead peer
+        // - remove from peers.floodsub
+        // - remove from peer-topics
+        self.handle_dead_peer(&peer_id).await.unwrap();
+        warn!("Dead peer in Floosub removed: {}", peer_id);
+
         Ok(())
     }
 
@@ -116,5 +123,91 @@ impl FloodSub {
         Ok(())
     }
 
-    
+    pub async fn subscribe(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn unsubscribe(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn publish(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn handle_subopts(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn handle_new_peer(
+        &mut self,
+        floodsub_peer_mpsc_tx: Sender<Vec<u8>>,
+        peer_id: String,
+    ) -> Result<()> {
+        {
+            let mut peerstore = self.peerstore.lock().await;
+            peerstore
+                .peers
+                .insert(peer_id, floodsub_peer_mpsc_tx.clone());
+        }
+
+        // send in the hello-packet
+        match self.get_hello_packet() {
+            None => {}
+            Some(rpc) => {
+                let mut buf = Vec::new();
+                rpc.encode(&mut buf).expect("Encoding failed");
+
+                floodsub_peer_mpsc_tx.send(buf).await.unwrap();
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn handle_dead_peer(&mut self, peer_id: &String) -> Result<()> {
+        let mut peerstore = self.peerstore.lock().await;
+
+        if peerstore.peers.remove(peer_id).is_none() {
+            return Ok(());
+        }
+
+        for peers in peerstore.peer_topics.values_mut() {
+            peers.retain(|peer| peer != peer_id);
+        }
+
+        Ok(())
+    }
+
+    pub fn topic_ids(&self) -> Option<Vec<String>> {
+        let topics: Vec<String> = self
+            .subscribed_topic_api
+            .keys()
+            .map(|x| x.clone())
+            .collect();
+
+        if !topics.is_empty() {
+            return Some(topics);
+        }
+
+        None
+    }
+
+    pub fn get_hello_packet(&self) -> Option<Rpc> {
+        let mut rpc = Rpc::default();
+        match self.topic_ids() {
+            Some(topics) => {
+                for topic_id in topics {
+                    rpc.subscriptions.push(SubOpts {
+                        subscribe: Some(true),
+                        topic_id: Some(topic_id),
+                    });
+                }
+                return Some(rpc);
+            }
+            None => {
+                return None;
+            }
+        }
+    }
 }
