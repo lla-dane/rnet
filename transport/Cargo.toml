@@ -7,7 +7,7 @@ edition = "2021"
 tokio = {workspace = true}
 anyhow = {workspace = true}
 async-trait = {workspace = true}
-prost = "0.13"
+prost = {workspace = true}
 rnet-tcp = { path = "../transport/tcp" }
 rnet-peer = { path = "../core/peer" }
 rnet-traits = { path = "../core/traits" }

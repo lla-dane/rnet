@@ -69,13 +69,10 @@ async fn main() -> Result<()> {
 
     let peer_data = host.peer_data.lock().await.clone();
 
-    // SET HANDLERS
-    let handler: AsyncHandler = Arc::new(|mut stream: MuxedStream| {
-        Box::pin(async move { handle_ping(&mut stream).await })
-    });
+    let handler: AsyncHandler =
+        Arc::new(|mut stream: MuxedStream| Box::pin(async move { handle_ping(&mut stream).await }));
     host.set_stream_handler(IPFS_PING, handler).unwrap();
 
-    // START THE NODE
     let handle = tokio::spawn(async move {
         host.run().await.unwrap();
     });

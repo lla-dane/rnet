@@ -1,0 +1,18 @@
+[package]
+name = "rnet-floodsub"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+prost = {workspace = true}
+
+
+rnet-multiaddr = { path = "../../core/multiaddr" }
+rnet-traits = { path = "../../core/traits" }
+rnet-mplex = { path = "../../muxer/mplex" }
+rnet-transport = { path = "../../transport" }
+rnet-proto = { path = "../../proto" }
