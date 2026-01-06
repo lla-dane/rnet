@@ -1,0 +1,3 @@
+- For continuous read/write operability on TcpStreams, used the tokio::select! pattern to do execute whatever Future gets complete and rerun the loop.
+
+- In floodsub handle_api impl, moved around the Arc<Mutex<_>> of FloodsubPeers to conserve the &self consumption of the function so we can use the floodsub instance even after starting the handle_api tokio::spawned-task, in the application code. In contrast to this, we cannot use th host-instance after starting the BasicHost::run().

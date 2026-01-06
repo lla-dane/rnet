@@ -1,0 +1,6 @@
+- [] write the implementations of subsription-api
+- [] complete the floodsub-stream handler impl.
+- [] create a service to notify the protocols about dead-peers from host-stream-handler
+- [] maybe look into, if we can do with BasicHost::run which we did with Floodsub::handle_api
+- [] need to notify the protocols- floodsub upon peer disconnection.
+- [x] make a floodsub api listener function

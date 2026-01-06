@@ -8,40 +8,72 @@ use prost::Message as ProstMessage;
 use rnet_mplex::mplex_stream::MuxedStream;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
 use tokio::sync::{
-    mpsc::{self, Sender},
+    mpsc::{self, Receiver, Sender},
     Mutex,
 };
 use tracing::{debug, error, warn};
 
-use crate::subscription::SubscriptionAPI;
+use crate::subscription::{process_floodsub_api_frame, SubAPIMpscTxFlag, SubscriptionAPI};
 
 #[derive(Debug, Clone)]
-pub struct FloosubPeers {
+pub struct FloosubStore {
     peer_topics: HashMap<String, Vec<String>>,
     peers: HashMap<String, Sender<Vec<u8>>>,
+    subscribed_topic_api: HashMap<String, Sender<Vec<u8>>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct FloodSub {
     floodsub_mpsc_tx: Sender<Vec<u8>>,
     last_seen_cache: HashMap<Vec<u8>, u8>,
-    peerstore: Arc<Mutex<FloosubPeers>>,
-    subscribed_topic_api: HashMap<String, Sender<Vec<u8>>>,
+    floodsub_store: Arc<Mutex<FloosubStore>>,
 }
 
 impl FloodSub {
     pub fn new() -> Result<Self> {
         let (floodsub_mpsc_tx, floodsub_mpsc_rx) = mpsc::channel::<Vec<u8>>(300);
-
         Ok(FloodSub {
             floodsub_mpsc_tx,
             last_seen_cache: HashMap::new(),
-            peerstore: Arc::new(Mutex::new(FloosubPeers {
+            floodsub_store: Arc::new(Mutex::new(FloosubStore {
                 peer_topics: HashMap::new(),
                 peers: HashMap::new(),
+                subscribed_topic_api: HashMap::new(),
             })),
-            subscribed_topic_api: HashMap::new(),
         })
+    }
+
+    pub async fn handle_api(
+        &self,
+        mut floodsub_mpsc_rx: Receiver<Vec<u8>>,
+        floodsub_store: Arc<Mutex<FloosubStore>>,
+    ) {
+        let mut notification = VecDeque::<Vec<u8>>::new();
+
+        loop {
+            tokio::select! {
+                Some(event) = floodsub_mpsc_rx.recv() => {
+                    notification.push_back(event);
+                }
+
+                _ = async {}, if !notification.is_empty() => {
+                    let frame = notification.pop_front().unwrap();
+
+                    let (flag, (_, opt_vec_pld)): (SubAPIMpscTxFlag, (Option<String>, Option<Vec<String>>)) = process_floodsub_api_frame(frame).unwrap();
+                    match flag {
+                        SubAPIMpscTxFlag::DeadPeers => {
+                            self.handle_dead_peers(
+                                opt_vec_pld.unwrap(),
+                                floodsub_store.clone())
+                                .await.unwrap();
+                        }
+                        SubAPIMpscTxFlag::Unsubscribe => {
+                            self.unsubscribe(opt_vec_pld.unwrap(), floodsub_store.clone()).await.unwrap();
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub async fn handle_incoming(&self, rpc: Rpc, peer_id: String) -> Result<()> {
@@ -105,19 +137,13 @@ impl FloodSub {
             }
         }
 
-        // TODO: handle dead peer
-        // - remove from peers.floodsub
-        // - remove from peer-topics
-        self.handle_dead_peers(vec![&peer_id]).await.unwrap();
-        warn!("Dead peer in Floosub removed: {}", peer_id);
-
         Ok(())
     }
 
     pub async fn write_msg(&self, peer_id: String, rpc_msg: Rpc) -> Result<()> {
         let floodsub_peer_mpsc_tx = {
-            let peerstore = self.peerstore.lock().await;
-            peerstore.peers.get(&peer_id).unwrap().clone()
+            let floodsub_store = self.floodsub_store.lock().await;
+            floodsub_store.peers.get(&peer_id).unwrap().clone()
         };
 
         let mut buf = Vec::new();
@@ -128,16 +154,17 @@ impl FloodSub {
     }
 
     pub async fn subscribe(&mut self, topic_id: String) -> Option<SubscriptionAPI> {
-        debug!("Subscribing to topic: {}", topic_id);
-
         if self
             .topic_ids()
+            .await
             .unwrap_or_else(|| vec![])
             .contains(&topic_id)
         {
             warn!("Already subscribed to the topic: {}", topic_id);
             return None;
         }
+
+        debug!("Subscribing to topic: {}", topic_id);
 
         let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let sub_api = SubscriptionAPI::new(
@@ -146,8 +173,12 @@ impl FloodSub {
             topic_mpsc_rx,
         );
 
-        self.subscribed_topic_api
-            .insert(topic_id.clone(), topic_mpsc_tx);
+        {
+            let mut store = self.floodsub_store.lock().await;
+            store
+                .subscribed_topic_api
+                .insert(topic_id.clone(), topic_mpsc_tx);
+        }
 
         let mut sub_rpc = Rpc::default();
         sub_rpc.subscriptions.push(SubOpts {
@@ -164,15 +195,38 @@ impl FloodSub {
         let mut rpc_bytes = Vec::new();
         rpc.encode(&mut rpc_bytes).expect("Encoding failed");
 
-        let peerstore = self.peerstore.lock().await;
-        for (_, stream) in peerstore.peers.iter() {
+        let floodsub_store = self.floodsub_store.lock().await;
+        for (_, stream) in floodsub_store.peers.iter() {
             stream.send(rpc_bytes.clone()).await.unwrap();
         }
 
         Ok(())
     }
 
-    pub async fn unsubscribe(&mut self) -> Result<()> {
+    pub async fn unsubscribe(
+        &self,
+        topics: Vec<String>,
+        floodsub_store: Arc<Mutex<FloosubStore>>,
+    ) -> Result<()> {
+        for topic_id in topics {
+            if !self.topic_ids().await.unwrap_or(vec![]).contains(&topic_id) {
+                warn!("Not subscribed to the topic: {}", topic_id);
+                return Ok(());
+            }
+
+            debug!("Unsubsctibing from topic: {}", topic_id);
+
+            let mut store = floodsub_store.lock().await;
+            store.subscribed_topic_api.remove_entry(&topic_id);
+
+            let mut unsub_rpc = Rpc::default();
+            unsub_rpc.subscriptions.push(SubOpts {
+                subscribe: Some(false),
+                topic_id: Some(topic_id),
+            });
+
+            self.message_all_peers(unsub_rpc).await.unwrap();
+        }
         Ok(())
     }
 
@@ -198,11 +252,11 @@ impl FloodSub {
     }
 
     pub async fn handle_subopts(&mut self, origin_id: String, sub_msg: SubOpts) -> Result<()> {
-        let mut peerstore = self.peerstore.lock().await;
+        let mut floodsub_store = self.floodsub_store.lock().await;
         let topic_id = sub_msg.topic_id.clone().unwrap();
 
         if sub_msg.subscribe() {
-            peerstore
+            floodsub_store
                 .peer_topics
                 .entry(topic_id)
                 .and_modify(|peers| {
@@ -212,7 +266,7 @@ impl FloodSub {
                 })
                 .or_insert_with(|| vec![origin_id]);
         } else {
-            if let Some(peers) = peerstore.peer_topics.get_mut(&topic_id) {
+            if let Some(peers) = floodsub_store.peer_topics.get_mut(&topic_id) {
                 peers.retain(|x| x != &origin_id);
             }
         }
@@ -226,14 +280,14 @@ impl FloodSub {
         peer_id: String,
     ) -> Result<()> {
         {
-            let mut peerstore = self.peerstore.lock().await;
-            peerstore
+            let mut floodsub_store = self.floodsub_store.lock().await;
+            floodsub_store
                 .peers
                 .insert(peer_id, floodsub_peer_mpsc_tx.clone());
         }
 
         // send in the hello-packet
-        match self.get_hello_packet() {
+        match self.get_hello_packet().await {
             None => {}
             Some(rpc) => {
                 let mut buf = Vec::new();
@@ -246,17 +300,23 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn handle_dead_peers(&mut self, peer_ids: Vec<&String>) -> Result<()> {
-        let mut peerstore = self.peerstore.lock().await;
+    pub async fn handle_dead_peers(
+        &self,
+        peer_ids: Vec<String>,
+        floodsub_store: Arc<Mutex<FloosubStore>>,
+    ) -> Result<()> {
+        let mut store = floodsub_store.lock().await;
 
         for peer_id in peer_ids {
-            if peerstore.peers.remove(peer_id).is_none() {
+            if store.peers.remove(&peer_id).is_none() {
                 return Ok(());
             }
 
-            for peers in peerstore.peer_topics.values_mut() {
-                peers.retain(|peer| peer != peer_id);
+            for peers in store.peer_topics.values_mut() {
+                peers.retain(|peer| peer != &peer_id);
             }
+
+            warn!("Dead peer in Floosub removed: {}", peer_id);
         }
 
         Ok(())
@@ -268,12 +328,12 @@ impl FloodSub {
         msg_forwarder: String,
         origin: String,
     ) -> Option<Vec<String>> {
-        let peerstore = self.peerstore.lock().await;
+        let floodsub_store = self.floodsub_store.lock().await;
         let known = [msg_forwarder, origin];
         let mut peers_to_send = Vec::new();
 
         for topic in topic_ids {
-            match peerstore.peer_topics.get(&topic) {
+            match floodsub_store.peer_topics.get(&topic) {
                 Some(peers) => {
                     for peer in peers {
                         if !known.contains(peer) {
@@ -292,12 +352,15 @@ impl FloodSub {
         return None;
     }
 
-    pub fn topic_ids(&self) -> Option<Vec<String>> {
-        let topics: Vec<String> = self
-            .subscribed_topic_api
-            .keys()
-            .map(|x| x.clone())
-            .collect();
+    pub async fn topic_ids(&self) -> Option<Vec<String>> {
+        let topics: Vec<String> = {
+            let store = self.floodsub_store.lock().await;
+            store
+                .subscribed_topic_api
+                .keys()
+                .map(|x| x.clone())
+                .collect()
+        };
 
         if !topics.is_empty() {
             return Some(topics);
@@ -306,9 +369,9 @@ impl FloodSub {
         None
     }
 
-    pub fn get_hello_packet(&self) -> Option<Rpc> {
+    pub async fn get_hello_packet(&self) -> Option<Rpc> {
         let mut rpc = Rpc::default();
-        match self.topic_ids() {
+        match self.topic_ids().await {
             Some(topics) => {
                 for topic_id in topics {
                     rpc.subscriptions.push(SubOpts {

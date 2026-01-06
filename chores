@@ -1,2 +1,0 @@
-- need to notify the protocols- floodsub upon peer disconnection.
-- make a floodsub api listener function
