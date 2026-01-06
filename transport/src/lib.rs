@@ -72,5 +72,10 @@ mod tests {
         let decoded_msg = &decoded_rpc.publish[0];
         assert_eq!(decoded_msg.data.as_ref().unwrap(), "hello world".as_bytes());
         assert_eq!(decoded_msg.topic_ids[0], "lib-chat");
+
+        println!(
+            "{}",
+            String::from_utf8_lossy(decoded_msg.data.as_ref().unwrap())
+        );
     }
 }
