@@ -16,3 +16,4 @@ rnet-traits = { path = "../../core/traits" }
 rnet-mplex = { path = "../../muxer/mplex" }
 rnet-transport = { path = "../../transport" }
 rnet-proto = { path = "../../proto" }
+rnet-peer = { path = "../../core/peer" }

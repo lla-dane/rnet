@@ -6,14 +6,16 @@ use std::{
 use anyhow::Result;
 use prost::Message as ProstMessage;
 use rnet_mplex::mplex_stream::MuxedStream;
+use rnet_peer::peer_info::PeerInfo;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
 use tracing::{debug, error, warn};
 
-use crate::subscription::{process_floodsub_api_frame, SubAPIMpscTxFlag, SubscriptionAPI};
+use crate::subscription::{process_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI};
 
 #[derive(Debug, Clone)]
 pub struct FloosubStore {
@@ -24,15 +26,17 @@ pub struct FloosubStore {
 
 #[derive(Debug, Clone)]
 pub struct FloodSub {
+    local_peer_info: PeerInfo,
     floodsub_mpsc_tx: Sender<Vec<u8>>,
     last_seen_cache: HashMap<Vec<u8>, u8>,
     floodsub_store: Arc<Mutex<FloosubStore>>,
 }
 
 impl FloodSub {
-    pub fn new() -> Result<Self> {
+    pub async fn new(local_peer_info: PeerInfo) -> Result<(Self, Receiver<Vec<u8>>)> {
         let (floodsub_mpsc_tx, floodsub_mpsc_rx) = mpsc::channel::<Vec<u8>>(300);
-        Ok(FloodSub {
+        let floodsub = FloodSub {
+            local_peer_info,
             floodsub_mpsc_tx,
             last_seen_cache: HashMap::new(),
             floodsub_store: Arc::new(Mutex::new(FloosubStore {
@@ -40,7 +44,9 @@ impl FloodSub {
                 peers: HashMap::new(),
                 subscribed_topic_api: HashMap::new(),
             })),
-        })
+        };
+
+        Ok((floodsub, floodsub_mpsc_rx))
     }
 
     pub async fn handle_api(
@@ -59,16 +65,27 @@ impl FloodSub {
                 _ = async {}, if !notification.is_empty() => {
                     let frame = notification.pop_front().unwrap();
 
-                    let (flag, (_, opt_vec_pld)): (SubAPIMpscTxFlag, (Option<String>, Option<Vec<String>>)) = process_floodsub_api_frame(frame).unwrap();
+                    let (flag, (_, opt_vec_pld, opt_data)): (SubAPIMpscFlag, (Option<String>, Option<Vec<String>>, Option<Vec<u8>>)) = process_floodsub_api_frame(frame).unwrap();
                     match flag {
-                        SubAPIMpscTxFlag::DeadPeers => {
-                            self.handle_dead_peers(
-                                opt_vec_pld.unwrap(),
-                                floodsub_store.clone())
+                        SubAPIMpscFlag::DeadPeers => {
+                            self.handle_dead_peers(opt_vec_pld.unwrap(),floodsub_store.clone())
                                 .await.unwrap();
                         }
-                        SubAPIMpscTxFlag::Unsubscribe => {
-                            self.unsubscribe(opt_vec_pld.unwrap(), floodsub_store.clone()).await.unwrap();
+                        SubAPIMpscFlag::Unsubscribe => {
+                            self._unsubscribe(opt_vec_pld.unwrap(), floodsub_store.clone()).await.unwrap();
+                        }
+                        SubAPIMpscFlag::Publish => {
+                            let unix_timestamp: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+                            let ts_bytes = unix_timestamp.to_le_bytes().to_vec();
+
+                            let pub_msg = Message {
+                                from: Some(self.local_peer_info.clone().peer_id.as_bytes().to_vec()),
+                                data: opt_data,
+                                seqno: Some(ts_bytes),
+                                topic_ids: opt_vec_pld.unwrap(),
+                            };
+
+                            self.publish(self.local_peer_info.clone().peer_id, pub_msg).await.unwrap();
                         }
                     }
                 }
@@ -168,8 +185,8 @@ impl FloodSub {
 
         let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let sub_api = SubscriptionAPI::new(
+            topic_id.clone(),
             self.floodsub_mpsc_tx.clone(),
-            topic_mpsc_tx.clone(),
             topic_mpsc_rx,
         );
 
@@ -203,7 +220,14 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn unsubscribe(
+    pub async fn unsubscribe(&mut self, topics: Vec<String>) -> Result<()> {
+        self._unsubscribe(topics, self.floodsub_store.clone())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    pub async fn _unsubscribe(
         &self,
         topics: Vec<String>,
         floodsub_store: Arc<Mutex<FloosubStore>>,
@@ -230,11 +254,11 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn publish(&self, msg_forwarder: String, publish_msg: Message) -> Result<()> {
+    pub async fn publish(&self, msg_forwarder_id: String, publish_msg: Message) -> Result<()> {
         let peers = self
             .get_peers_to_send(
                 publish_msg.topic_ids.clone(),
-                msg_forwarder,
+                msg_forwarder_id,
                 String::from_utf8_lossy(publish_msg.from.as_ref().unwrap()).to_string(),
             )
             .await
@@ -283,7 +307,7 @@ impl FloodSub {
             let mut floodsub_store = self.floodsub_store.lock().await;
             floodsub_store
                 .peers
-                .insert(peer_id, floodsub_peer_mpsc_tx.clone());
+                .insert(peer_id.clone(), floodsub_peer_mpsc_tx.clone());
         }
 
         // send in the hello-packet
@@ -296,6 +320,8 @@ impl FloodSub {
                 floodsub_peer_mpsc_tx.send(buf).await.unwrap();
             }
         }
+
+        debug!("New peer connected for Floodsub: {}", peer_id);
 
         Ok(())
     }
