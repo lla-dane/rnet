@@ -34,11 +34,20 @@ impl SubscriptionAPI {
     }
 
     pub async fn publish(&self, msg: Vec<u8>) -> Result<()> {
+        let frame = build_floodsub_api_frame(
+            SubAPIMpscFlag::Publish,
+            None,
+            Some(vec![self.topic_id.clone()]),
+            Some(msg),
+        );
+
+        self.floodsub_mpsc_tx.send(frame).await.unwrap();
         Ok(())
     }
 
-    pub async fn recv(&self) -> Result<Vec<u8>> {
-        Ok(Vec::new())
+    pub async fn recv(&mut self) -> Result<Vec<u8>> {
+        let msg = self.topic_mpsc_rx.recv().await.unwrap();
+        Ok(msg)
     }
 }
 
@@ -178,8 +187,6 @@ pub fn process_floodsub_api_frame(
         idx += 4;
 
         let data = payload[idx..idx + data_len].to_vec();
-        idx += data_len;
-
         Some(data)
     };
 
