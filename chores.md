@@ -2,11 +2,11 @@
 - [ ] last-seen-message cache need to have bound to prevent DOS-flood attacks.
 - [ ] maybe create a blacklist component in floodsub for fraud peers
 - [x] complete the consume_pubsub_msg utility
-- [ ] create a protocol stream-handler service component in basic-host
+- [x] create a protocol stream-handler service component in basic-host
 - [ ] seqno timestamps are secs, do it nano-secs
 - [x] integrate the last-seen cache with handle_incoming workflow in floodsub
 - [x] write the implementations of subsription-api
 - [x] complete the floodsub-stream handler impl.
-- [ ] create a service to notify the protocols about dead-peers from host-stream-handler
+- [x] create a service to notify the protocols about dead-peers from host-stream-handler
 - [ ] look into if we can do with BasicHost::run which we did with Floodsub::handle_api
 - [x] make a floodsub api listener function
