@@ -404,8 +404,6 @@ impl FloodSub {
             for peers in store.peer_topics.values_mut() {
                 peers.retain(|peer| peer != &peer_id);
             }
-
-            warn!("Dead peer in Floosub removed: {}", peer_id);
         }
 
         Ok(())
