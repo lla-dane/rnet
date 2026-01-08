@@ -62,7 +62,7 @@ impl BasicHost {
 
         // ---------------------------
 
-        info!("Host listening on: {:?}", listen_addr.to_string());
+        info!("Host listening on: {}", listen_addr.to_string());
         let (host_mpsc_tx, host_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
         let host_tx = Arc::new(HostMpscTx { host_mpsc_tx });
@@ -141,6 +141,15 @@ impl BasicHost {
     }
 
     pub async fn connect(&self, addr: &Multiaddr) -> Result<()> {
+        let remote_peer_id = addr.value_for_protocol("p2p").unwrap();
+        {
+            let connections = self.connections.lock().await;
+            if connections.contains_key(&remote_peer_id) {
+                warn!("Peer already connected: {}", remote_peer_id);
+                return Ok(());
+            }
+        }
+
         let stream = TcpTransport::dial(addr).await?;
         self.conn_handler(stream, true).await.unwrap();
 
