@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
-    thread,
     time::Duration,
 };
 
@@ -19,7 +18,9 @@ use tracing::{debug, error, warn};
 
 use crate::{
     get_seqno, seqno_to_unix_tx,
-    subscription::{process_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI},
+    subscription::{
+        build_floodsub_api_frame, process_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI,
+    },
 };
 
 type LastSeenCache = HashMap<MessageKey, u64>;
@@ -75,7 +76,7 @@ impl FloodSub {
     }
 
     pub async fn handle_incoming(&self, rpc: Rpc, peer_id: String) -> Result<()> {
-        let subsribed_topics = self.get_subscribed_topics().await.unwrap();
+        let subsribed_topics = self.get_subscribed_topics().await.unwrap_or(vec![]);
 
         if !rpc.publish.is_empty() {
             for msg in rpc.publish {
@@ -104,7 +105,7 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn stream_handler(&self, stream: &mut MuxedStream) -> Result<()> {
+    pub async fn stream_handler(&self, mut stream: MuxedStream) -> Result<()> {
         let peer_id = stream.remote_peer_info.clone().peer_id;
         let (floodsub_peer_mpsc_tx, mut floodsub_peer_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let mut notification = VecDeque::<Vec<u8>>::new();
@@ -124,10 +125,7 @@ impl FloodSub {
                             let rpc = Rpc::decode(&incoming[..]).expect("Decoding failed");
                             self.handle_incoming(rpc, peer_id.clone()).await.unwrap();
                         }
-                        Err(e) => {
-                            warn!("Connection dropped: {}", e);
-                            break;
-                        }
+                        Err(_) => {break;}
                     }
                 }
 
@@ -144,6 +142,10 @@ impl FloodSub {
                 }
             }
         }
+
+        let frame =
+            build_floodsub_api_frame(SubAPIMpscFlag::DeadPeers, None, Some(vec![peer_id]), None);
+        self.floodsub_mpsc_tx.send(frame).await.unwrap();
 
         Ok(())
     }
