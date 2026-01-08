@@ -50,7 +50,10 @@ impl MuxedStream {
     }
 
     pub async fn read(&mut self) -> Result<Vec<u8>> {
-        Ok(self.muxed_stream_mpsc_rx.recv().await.unwrap())
+        match self.muxed_stream_mpsc_rx.recv().await {
+            Some(payload) => return Ok(payload),
+            None => return Err(Error::msg("mpsc receiver down")),
+        }
     }
 
     pub async fn server_handshake(mut self) -> Result<()> {
