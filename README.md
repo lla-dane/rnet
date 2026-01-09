@@ -2,11 +2,9 @@
 
 This repository is an experimental peer-to-peer networking library written in Rust. The goal is for me to understand how a P2P stack is built from ground up -- especially the complex RUST async patterns involved when we combine transports, multiplexing, and application-level protocols.
 
-### A p2p chat-room over floodsub using rnet 
-<video controls width="720">
-  <source src="./demo/floodsub.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+### A p2p chat-room over floodsub using rnet
+
+https://github.com/user-attachments/assets/2dfd2f38-75fe-454e-a003-225765f63c20
 
 ## Repository Structure
 
@@ -39,6 +37,7 @@ The main components of this repository are structured as follows:
   Currently includes:
 
   - **identify**, peer indentification handshake
+  - **floodsub**, an end-to-end pubsub router with peer-subscriptions, gated propagation, dedup with last-seen message cache.
 
 - `examples/`: Runnable binaries demonstrating how to assemble the stack end-to-end.
 
@@ -49,13 +48,14 @@ The main components of this repository are structured as follows:
   - how transports, muxers, and protcols are wired together in practice.
     These are intended as executable reference points, not just sample snippets.
 
--------------------------------------------------------------------------
+---
+
 > Legend: ✅: Done  🛠️: In Progress/Usable  🌱 Prototype/Unstable  ❌: Missing
 
 ## Transports
 
-| **Transport**  | **Status** |                                      **Source**                                      |
-| -------------- | :--------: | :----------------------------------------------------------------------------------: |
+| **Transport**  | **Status** |                              **Source**                              |
+| -------------- | :--------: | :------------------------------------------------------------------: |
 | **`rnet-tcp`** |     ✅     | [source](https://github.com/lla-dane/rnet/tree/master/transport/tcp) |
 
 ---
@@ -70,16 +70,24 @@ The main components of this repository are structured as follows:
 
 ### Stream Muxers
 
-| **Stream Muxers** | **Status** |                                     **Source**                                     |
-| ----------------- | :--------: | :--------------------------------------------------------------------------------: |
+| **Stream Muxers** | **Status** |                             **Source**                             |
+| ----------------- | :--------: | :----------------------------------------------------------------: |
 | **`rnet-mplex`**  |     ✅     | [source](https://github.com/lla-dane/rnet/tree/master/muxer/mplex) |
+
+---
+
+### Core-Modules
+
+| **Stream Muxers**    | **Status** |                             **Source**                                    |
+| -----------------    | :--------: | :-----------------------------------------------------------------------: |
+| **`rnet-floodsub`**  |     ✅     | [source](https://github.com/lla-dane/rnet/tree/master/protocols/floodsub) |
 
 ---
 
 ### General Purpose Utilities & Datatypes
 
-| **Utility/Datatype** | **Status** |                                        **Source**                                         |
-| -------------------- | :--------: | :---------------------------------------------------------------------------------------: |
+| **Utility/Datatype** | **Status** |                                **Source**                                 |
+| -------------------- | :--------: | :-----------------------------------------------------------------------: |
 | **`rnet-ping`**      |     ✅     |   [source](https://github.com/lla-dane/rnet/tree/master/examples/ping)    |
 | **`rnet-identify`**  |     ✅     | [source](https://github.com/lla-dane/rnet/tree/master/protocols/identify) |
 
