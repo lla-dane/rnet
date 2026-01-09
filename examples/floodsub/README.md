@@ -2,6 +2,12 @@
 
 The ping example showcases how to create a network of nodes that establish connections, negotiate the ping protocol, and ping each other.
 
+## Demo
+<video controls width="720">
+  <source src="../../demo/floodsub.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## Usage
 
 To run the example, follow these steps:
@@ -13,6 +19,7 @@ To run the example, follow these steps:
    ```
 
    This command starts a node and prints the `PeerId` and the listening addresses, such as:
+
    ```sh
    `Listening on "/ip4/127.0.0.1/tcp/44389/p2p/23fdsv32..."`.
    ```

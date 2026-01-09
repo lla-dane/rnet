@@ -2,6 +2,9 @@
 
 The ping example showcases how to create a network of nodes that establish connections, negotiate the ping protocol, and ping each other.
 
+## Demo
+![ping-demo](../../demo/ping.png)
+
 ## Usage
 
 To run the example, follow these steps:

@@ -15,6 +15,7 @@ members = [
     "muxer/mplex",
     "examples/tcp",
     "examples/ping",
+    "examples/floodsub",
 ]
 
 

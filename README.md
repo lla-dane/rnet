@@ -2,6 +2,12 @@
 
 This repository is an experimental peer-to-peer networking library written in Rust. The goal is for me to understand how a P2P stack is built from ground up -- especially the complex RUST async patterns involved when we combine transports, multiplexing, and application-level protocols.
 
+### A p2p chat-room over floodsub using rnet 
+<video controls width="720">
+  <source src="./demo/floodsub.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## Repository Structure
 
 The main components of this repository are structured as follows:
