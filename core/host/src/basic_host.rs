@@ -120,9 +120,9 @@ impl BasicHost {
                         },
 
                         HostMpscTxFlag::NewStream => {
-                            let peer_id = &str_pld;
+                            let maadr = Multiaddr::new(&str_pld).unwrap();
                             let protocols = opt_vec_pld.unwrap();
-                            self.new_stream(peer_id, protocols).await;
+                            self.new_stream(&maadr, protocols).await;
                         },
 
                         HostMpscTxFlag::Disconnect => {
@@ -156,10 +156,17 @@ impl BasicHost {
         Ok(())
     }
 
-    pub async fn new_stream(&self, peer_id: &str, protocols: Vec<String>) {
+    pub async fn new_stream(&self, maddr: &Multiaddr, protocols: Vec<String>) {
+        let peer_id = maddr.value_for_protocol("p2p").unwrap();
+        if !self.is_peer_connected(&peer_id).await {
+            info!("Making a connection first: {}", peer_id);
+            self.connect(maddr).await.unwrap();
+        }
+        
         let mut connections = self.connections.lock().await;
+
         let muxed_conn_mpsc_tx = connections
-            .get_mut(peer_id)
+            .get_mut(&peer_id)
             .ok_or_else(|| anyhow::anyhow!("No such peer"))
             .expect("Make a connection first")
             .clone();
@@ -172,6 +179,16 @@ impl BasicHost {
         );
         new_stream_frame.splice(0..0, INTERNAL);
         muxed_conn_mpsc_tx.send(new_stream_frame).await.unwrap();
+    }
+
+    pub async fn is_peer_connected(&self, peer_id: &str) -> bool {
+        let is_connected = {
+            let connections = self.connections.lock().await;
+            let bool = connections.contains_key(peer_id);
+            bool
+        };
+
+        is_connected
     }
 
     pub async fn conn_handler(&self, stream: TcpConn, is_initiator: bool) -> Result<()> {
@@ -252,10 +269,10 @@ impl HostMpscTx {
         Ok(())
     }
 
-    pub async fn new_stream(&self, peer_id: &str, protocols: Vec<String>) -> Result<()> {
+    pub async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()> {
         let frame = build_host_frame(
             HostMpscTxFlag::NewStream,
-            peer_id.to_string(),
+            maddr.to_string(),
             Some(protocols),
         );
         self.write(frame).await.unwrap();

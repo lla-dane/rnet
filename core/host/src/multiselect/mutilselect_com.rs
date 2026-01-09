@@ -5,7 +5,6 @@ use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
 use rnet_traits::transport::SendReceive;
 use rnet_transport::RawConnection;
-use tracing::debug;
 
 #[derive(Debug)]
 pub struct MultiselectComm {}
@@ -29,8 +28,6 @@ impl MultiselectComm {
         let peer_info = identify_seq(local_peer_info, &mut stream, true)
             .await
             .expect("Identify handshake failed");
-
-        debug!("Identify handshake complete");
 
         Ok(RawConnection {
             stream,
