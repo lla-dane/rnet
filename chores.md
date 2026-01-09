@@ -1,4 +1,5 @@
 - [ ]
+- [ ] make a universal internal mpsc-tx header generator utility
 - [ ] last-seen-message cache need to have bound to prevent DOS-flood attacks.
 - [ ] maybe create a blacklist component in floodsub for fraud peers
 - [x] complete the consume_pubsub_msg utility
