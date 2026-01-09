@@ -1,0 +1,25 @@
+[package]
+name = "floodsub"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "floodsub"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rnet-tcp = { path = "../../transport/tcp" }
+rnet-core = { path = "../../core" }
+rnet-traits = { path = "../../core/traits" }
+rnet-host = { path = "../../core/host" }
+rnet-multiaddr = { path = "../../core/multiaddr" }
+rnet-peer = { path = "../../core/peer" }
+rnet-mplex = { path = "../../muxer/mplex" }
+rnet-floodsub = { path = "../../protocols/floodsub" }
+rsa = { workspace = true }
+bincode = { workspace = true }
