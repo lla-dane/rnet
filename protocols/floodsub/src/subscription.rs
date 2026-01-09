@@ -3,7 +3,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
 pub struct SubscriptionAPI {
-    topic_id: String,
+    pub topic_id: String,
     floodsub_mpsc_tx: Sender<Vec<u8>>,
     topic_mpsc_rx: Receiver<Vec<u8>>,
 }
@@ -45,9 +45,8 @@ impl SubscriptionAPI {
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> Result<Vec<u8>> {
-        let msg = self.topic_mpsc_rx.recv().await.unwrap();
-        Ok(msg)
+    pub async fn recv(&mut self) -> Option<Vec<u8>> {
+        self.topic_mpsc_rx.recv().await
     }
 }
 

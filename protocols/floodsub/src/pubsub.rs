@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -11,20 +10,17 @@ use rnet_peer::peer_info::PeerInfo;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
+    mpsc::{self, Sender},
     Mutex,
 };
 use tracing::{debug, error, warn};
 
 use crate::{
-    get_seqno, seqno_to_unix_tx,
-    subscription::{
-        build_floodsub_api_frame, process_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI,
-    },
+    cleanup_msg_cache, handle_floodsub_api, seqno_to_unix_tx,
+    subscription::{build_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI},
 };
 
-type LastSeenCache = HashMap<MessageKey, u64>;
-const LAST_SEEN_TTL: u64 = 120;
+pub type LastSeenCache = HashMap<MessageKey, u64>;
 
 #[derive(Debug, Clone)]
 pub struct FloosubStore {
@@ -34,17 +30,17 @@ pub struct FloosubStore {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct MessageKey {
+pub struct MessageKey {
     from: Vec<u8>,
     seqno: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct FloodSub {
-    local_peer_info: PeerInfo,
-    floodsub_mpsc_tx: Sender<Vec<u8>>,
+    pub local_peer_info: PeerInfo,
+    pub floodsub_mpsc_tx: Sender<Vec<u8>>,
     last_seen_cache: Arc<Mutex<LastSeenCache>>,
-    floodsub_store: Arc<Mutex<FloosubStore>>,
+    pub floodsub_store: Arc<Mutex<FloosubStore>>,
 }
 
 impl FloodSub {
@@ -94,11 +90,6 @@ impl FloodSub {
 
         if !rpc.subscriptions.is_empty() {
             for msg in rpc.subscriptions {
-                debug!(
-                    "Received subscription msg {:?} from peer {}",
-                    msg,
-                    peer_id.clone()
-                );
                 self.handle_subopts(peer_id.clone(), msg).await.unwrap();
             }
         }
@@ -225,10 +216,12 @@ impl FloodSub {
                 return Ok(());
             }
 
-            debug!("Unsubsctibing from topic: {}", topic_id);
+            debug!("Unsubscribing from topic: {}", topic_id);
 
-            let mut store = self.floodsub_store.lock().await;
-            store.subscribed_topic_api.remove_entry(&topic_id);
+            {
+                let mut store = self.floodsub_store.lock().await;
+                store.subscribed_topic_api.remove_entry(&topic_id);
+            }
 
             let mut unsub_rpc = Rpc::default();
             unsub_rpc.subscriptions.push(SubOpts {
@@ -254,7 +247,6 @@ impl FloodSub {
         let mut rpc_msg = Rpc::default();
         rpc_msg.publish.push(publish_msg.clone());
 
-        debug!("Publishing message: {:?}", publish_msg);
         for peer_id in peers {
             self.write_msg(peer_id, rpc_msg.clone()).await.unwrap();
         }
@@ -283,11 +275,6 @@ impl FloodSub {
         if self.is_msg_seen(&publish_msg).await {
             return Ok(());
         }
-
-        debug!(
-            "received `publish` message {:?} from peer {}",
-            publish_msg, msg_forwarder_id
-        );
 
         for topic_id in publish_msg.topic_ids.iter() {
             if subscribed_topics.contains(topic_id) {
@@ -347,6 +334,8 @@ impl FloodSub {
         let topic_id = sub_msg.topic_id.clone().unwrap();
 
         if sub_msg.subscribe() {
+            debug!("[{}]: subscribed [{}]", origin_id, topic_id);
+
             floodsub_store
                 .peer_topics
                 .entry(topic_id)
@@ -357,6 +346,7 @@ impl FloodSub {
                 })
                 .or_insert_with(|| vec![origin_id]);
         } else {
+            debug!("[{}]: unsubscribed [{}]", origin_id, topic_id);
             if let Some(peers) = floodsub_store.peer_topics.get_mut(&topic_id) {
                 peers.retain(|x| x != &origin_id);
             }
@@ -456,6 +446,33 @@ impl FloodSub {
         None
     }
 
+    pub async fn get_connected_peers(&self) -> Option<Vec<String>> {
+        let peers: Vec<String> = {
+            let store = self.floodsub_store.lock().await;
+            store.peers.keys().map(|x| x.clone()).collect()
+        };
+
+        if !peers.is_empty() {
+            return Some(peers);
+        }
+
+        None
+    }
+
+    pub async fn get_floodsub_mesh(&self) -> HashMap<String, Vec<String>> {
+        let peer_topics = {
+            let store = self.floodsub_store.lock().await;
+            let peer_topics = store.peer_topics.clone();
+            peer_topics
+        };
+
+        return peer_topics;
+    }
+
+    pub fn get_local(&self) -> Result<PeerInfo> {
+        Ok(self.local_peer_info.clone())
+    }
+
     pub async fn get_hello_packet(&self) -> Option<Rpc> {
         let mut rpc = Rpc::default();
         match self.get_subscribed_topics().await {
@@ -472,59 +489,5 @@ impl FloodSub {
                 return None;
             }
         }
-    }
-}
-
-pub async fn handle_floodsub_api(floodsub: Arc<FloodSub>, mut floodsub_mpsc_rx: Receiver<Vec<u8>>) {
-    let mut notification = VecDeque::<Vec<u8>>::new();
-
-    loop {
-        tokio::select! {
-            Some(event) = floodsub_mpsc_rx.recv() => {
-                notification.push_back(event);
-            }
-
-            _ = async {}, if !notification.is_empty() => {
-                let frame = notification.pop_front().unwrap();
-
-                let (flag, (_, opt_vec_pld, opt_data)): (SubAPIMpscFlag, (Option<String>, Option<Vec<String>>, Option<Vec<u8>>)) = process_floodsub_api_frame(frame).unwrap();
-                match flag {
-                    SubAPIMpscFlag::DeadPeers => {
-                        floodsub.handle_dead_peers(opt_vec_pld.unwrap())
-                            .await.unwrap();
-                    }
-                    SubAPIMpscFlag::Unsubscribe => {
-                        floodsub.unsubscribe(opt_vec_pld.unwrap()).await.unwrap();
-                    }
-                    SubAPIMpscFlag::Publish => {
-                        let timestamp = get_seqno();
-
-                        let pub_msg = Message {
-                            from: Some(floodsub.local_peer_info.clone().peer_id.as_bytes().to_vec()),
-                            data: opt_data,
-                            seqno: Some(timestamp),
-                            topic_ids: opt_vec_pld.unwrap(),
-                        };
-
-                        floodsub.publish(floodsub.local_peer_info.clone().peer_id, pub_msg).await.unwrap();
-                    }
-                }
-            }
-        }
-    }
-}
-
-async fn cleanup_msg_cache(msg_cache: Arc<Mutex<LastSeenCache>>) {
-    loop {
-        {
-            let mut cache = msg_cache.lock().await;
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            cache.retain(|_, first_seen_ts| now.saturating_sub(*first_seen_ts) <= LAST_SEEN_TTL);
-        }
-
-        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
