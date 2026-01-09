@@ -84,13 +84,10 @@ async fn main() -> Result<()> {
         );
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
-        host_tx.connect(&multiaddr).await?;
+        // host_tx.connect(&multiaddr).await?;
 
         host_tx
-            .new_stream(
-                &multiaddr.value_for_protocol("p2p").unwrap(),
-                vec![IPFS_PING.to_string()],
-            )
+            .new_stream(&multiaddr.to_string(), vec![IPFS_PING.to_string()])
             .await
             .unwrap();
     }
