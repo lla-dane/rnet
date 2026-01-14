@@ -1,4 +1,5 @@
 - [ ]
+- [ ] make rnet event driven, push the updates of each protocols as events
 - [ ] make a universal internal mpsc-tx header generator utility
 - [ ] last-seen-message cache need to have bound to prevent DOS-flood attacks.
 - [ ] maybe create a blacklist component in floodsub for fraud peers
