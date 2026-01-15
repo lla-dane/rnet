@@ -1,4 +1,9 @@
 - [ ]
+- [ ] add a security stream protocol
+- [ ] maybe look for restructuring multiselect
+- [ ] look for encrypt/decrypt utils for keys-types
+- [ ] shift all protocol ids to core/lib.rs
+- [ ] set up custom error handling structs
 - [ ] make rnet event driven, push the updates of each protocols as events
 - [ ] make a universal internal mpsc-tx header generator utility
 - [ ] last-seen-message cache need to have bound to prevent DOS-flood attacks.
