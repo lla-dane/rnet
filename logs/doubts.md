@@ -1,0 +1,7 @@
+- 
+- figure out what is the deal with certificates in security 
+- difference between le and be encoding of integers, for packet transfer payload
+- learn to convert traits -> types, then pass them in structs, to keep modular support
+- learn how to work with traits in runtime
+- explore the use-cases of different derive traits
+- figure out application of Send, Sync, Sized etc.
