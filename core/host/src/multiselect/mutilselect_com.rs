@@ -3,7 +3,7 @@ use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
-use rnet_traits::transport::SendReceive;
+use rnet_traits::transport::IReadWriteClose;
 use rnet_transport::RawConnection;
 
 #[derive(Debug)]

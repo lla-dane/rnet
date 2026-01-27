@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
-use rnet_traits::transport::SendReceive;
+use rnet_traits::transport::IReadWriteClose;
 
 pub async fn identify_seq(
     local_peer_info: &PeerInfo,

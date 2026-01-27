@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Ok, Result};
 use rnet_multiaddr::Multiaddr;
-use rnet_traits::transport::{Connection, Transport};
+use rnet_traits::transport::{IReadWriteClose, ITransport};
 use rnet_tcp::TcpTransport;
 use tokio::time::sleep;
 use tracing::{debug, info};

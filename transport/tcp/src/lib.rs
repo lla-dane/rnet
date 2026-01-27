@@ -1,7 +1,7 @@
 use anyhow::{bail, Ok, Result};
 use async_trait::async_trait;
 use rnet_multiaddr::Multiaddr;
-use rnet_traits::transport::{Connection, SendReceive, Transport};
+use rnet_traits::transport::{IReadWriteClose, ITransport};
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -19,23 +19,11 @@ pub struct TcpConn {
 }
 
 #[async_trait]
-impl Connection for TcpConn {
+impl IReadWriteClose for TcpConn {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = self.stream.read(buf).await?;
         return Ok(n);
     }
-    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let n = self.stream.write(buf).await?;
-        return Ok(n);
-    }
-    async fn close(&mut self) -> Result<()> {
-        self.stream.shutdown().await?;
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl SendReceive for TcpConn {
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
         let mut total = 0;
         while total < buf.len() {
@@ -69,6 +57,14 @@ impl SendReceive for TcpConn {
 
         Ok(())
     }
+    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let n = self.stream.write(buf).await?;
+        return Ok(n);
+    }
+    async fn close(&mut self) -> Result<()> {
+        self.stream.shutdown().await?;
+        Ok(())
+    }
 }
 
 impl TcpConn {
@@ -85,9 +81,7 @@ impl TcpTransport {
 }
 
 #[async_trait]
-impl Transport for TcpTransport {
-    type Conn = TcpConn;
-
+impl ITransport<TcpConn> for TcpTransport {
     async fn listen(addr: &Multiaddr) -> Result<Self> {
         let local_ip = addr.value_for_protocol("ip4").unwrap();
         let port = addr.value_for_protocol("tcp").unwrap();
@@ -97,12 +91,12 @@ impl Transport for TcpTransport {
         Ok(Self { listener: listener })
     }
 
-    async fn accept(&self) -> Result<(Self::Conn, SocketAddr)> {
+    async fn accept(&self) -> Result<(TcpConn, SocketAddr)> {
         let (stream, addr) = self.listener.accept().await?;
         Ok((TcpConn { stream }, addr))
     }
 
-    async fn dial(addr: &Multiaddr) -> Result<Self::Conn> {
+    async fn dial(addr: &Multiaddr) -> Result<TcpConn> {
         let local_ip = addr.value_for_protocol("ip4").unwrap();
         let port = addr.value_for_protocol("tcp").unwrap();
         let addr = format!("{}:{}", local_ip, port);

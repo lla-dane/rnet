@@ -12,7 +12,7 @@ use anyhow::{Error, Result};
 use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
-use rnet_traits::transport::Transport;
+use rnet_traits::transport::ITransport;
 use std::result::Result::Ok;
 use tracing::{debug, info, warn};
 

@@ -1,10 +1,20 @@
+#![allow(unused_variables, dead_code, unused_imports)]
+
 use anyhow::Result;
-use rnet_host::basic_host::BasicHost;
+use chacha20poly1305::{
+    aead::{Aead, OsRng},
+    AeadCore, ChaCha20Poly1305, ChaChaPoly1305, KeyInit,
+};
+use rnet_host::{
+    basic_host::BasicHost,
+    keys::{rsa::RsaKeyPair, Keys},
+};
 use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MuxedStream};
 use rnet_multiaddr::Multiaddr;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
+use x25519_dalek::PublicKey;
 
 const PING_LENGTH: usize = 32;
 const IPFS_PING: &str = "/ipfs/ping/1.0.0";
@@ -57,6 +67,41 @@ async fn main() -> Result<()> {
         .init();
     let args: Vec<String> = env::args().collect();
 
+    // let csprng = OsRng {};
+    // let alice_secret = x25519_dalek::EphemeralSecret::random_from_rng(csprng);
+    // let bob_secret = x25519_dalek::EphemeralSecret::random_from_rng(csprng);
+
+    // let alice_public = PublicKey::from(&alice_secret);
+    // let bob_public = PublicKey::from(&bob_secret);
+
+    // let hex = hex::encode(alice_public.as_bytes());
+    // println!("{}", hex);
+
+    // let alice_shared_secret = alice_secret.diffie_hellman(&bob_public);
+    // let bob_shared_secret = bob_secret.diffie_hellman(&alice_public);
+
+    // let alice_key = chacha20poly1305::Key::from_slice(alice_shared_secret.as_bytes());
+    // let bob_key = chacha20poly1305::Key::from_slice(bob_shared_secret.as_bytes());
+
+    // let alice_cipher = ChaCha20Poly1305::new(&alice_key);
+    // let bob_cipher = ChaCha20Poly1305::new(&bob_key);
+
+    // let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+    // let ciphertext = alice_cipher
+    //     .encrypt(&nonce, b"top secret orgy".as_ref())
+    //     .unwrap();
+    // let plaintext = bob_cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+
+    // let ciphertext = bob_cipher
+    //     .encrypt(&nonce, b"top secret orgy haha".as_ref())
+    //     .unwrap();
+    // let plaintext = alice_cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+
+    // assert_eq!(&plaintext, b"top secret orgy haha");
+    
+    
+    
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
     let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
 

@@ -14,6 +14,8 @@ rsa = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
+x25519-dalek = { workspace = true}
+chacha20poly1305 = { workspace = true }
 
 rnet-tcp = { path = "../../transport/tcp" }
 rnet-traits = { path = "../../core/traits" }

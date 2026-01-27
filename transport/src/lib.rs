@@ -1,8 +1,7 @@
 use anyhow::{Ok, Result};
 use rnet_peer::peer_info::PeerInfo;
 use rnet_tcp::TcpConn;
-use rnet_traits::transport::Connection;
-use rnet_traits::transport::SendReceive;
+use rnet_traits::transport::IReadWriteClose;
 
 #[derive(Debug)]
 pub struct RawConnection {

@@ -13,6 +13,11 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+x25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+bincode = { workspace = true }
+hex = {workspace = true}
+
 rnet-tcp = { path = "../../transport/tcp" }
 rnet-core = { path = "../../core" }
 rnet-traits = { path = "../../core/traits" }
@@ -20,5 +25,4 @@ rnet-host = { path = "../../core/host" }
 rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-peer = { path = "../../core/peer" }
 rnet-mplex = { path = "../../muxer/mplex" }
-rsa = { workspace = true }
-bincode = { workspace = true }
+

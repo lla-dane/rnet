@@ -2,6 +2,7 @@ use ::rsa::pkcs1v15::Signature;
 use anyhow::Result;
 
 pub mod rsa;
+pub mod x25519;
 
 pub trait Keys {
     fn public_key(&self) -> String;
