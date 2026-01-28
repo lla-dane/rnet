@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use anyhow::{Ok, Result};
 use rnet_multiaddr::Multiaddr;
-use rnet_traits::transport::{IReadWriteClose, ITransport};
 use rnet_tcp::TcpTransport;
+use rnet_traits::{stream::IReadWriteClose, transport::ITransport};
 use tokio::time::sleep;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;

@@ -1,4 +1,4 @@
-use rnet_mplex::mplex::{build_frame, AsyncHandler, MuxedConn};
+use rnet_mplex::mplex::{build_frame, AsyncHandler, MplexConn};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -12,7 +12,11 @@ use anyhow::{Error, Result};
 use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
-use rnet_traits::transport::ITransport;
+use rnet_traits::{
+    conn::{IMuxedConn, IRawConnection},
+    stream::IReadWriteClose,
+    transport::ITransport,
+};
 use std::result::Result::Ok;
 use tracing::{debug, info, warn};
 
@@ -162,7 +166,7 @@ impl BasicHost {
             info!("Making a connection first: {}", peer_id);
             self.connect(maddr).await.unwrap();
         }
-        
+
         let mut connections = self.connections.lock().await;
 
         let muxed_conn_mpsc_tx = connections
@@ -218,7 +222,7 @@ impl BasicHost {
 
         // -------MPEX-UPDATE-----
         let (muxed_conn_mpsc_tx, muxed_conn_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let muxed_conn = MuxedConn::new(
+        let muxed_conn = MplexConn::new(
             raw_conn,
             is_initiator,
             remote_peer_info.clone(),
@@ -293,7 +297,14 @@ impl HostMpscTx {
         Ok(())
     }
 
-    pub async fn handle_incoming(&self, mut muxed_conn: MuxedConn, peer_id: &str) -> Result<()> {
+    pub async fn handle_incoming<T>(
+        &self,
+        mut muxed_conn: MplexConn<T>,
+        peer_id: &str,
+    ) -> Result<()>
+    where
+        T: IReadWriteClose + Send + Sync,
+    {
         let mut write_queue = VecDeque::<Vec<u8>>::new();
 
         loop {

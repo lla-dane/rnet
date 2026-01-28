@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::{Error, Ok, Result};
+use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
+use rnet_traits::stream::IMuxedStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
     mplex::{build_frame, AsyncHandler},
 };
 
-pub struct MuxedStream {
+pub struct MplexStream {
     muxed_conn_mpsc_tx: Sender<Vec<u8>>,
     muxed_stream_mpsc_rx: Receiver<Vec<u8>>,
     pub stream_id: u32,
@@ -18,7 +20,7 @@ pub struct MuxedStream {
     pub handlers: HashMap<String, AsyncHandler>,
 }
 
-impl MuxedStream {
+impl MplexStream {
     pub fn new(
         muxed_conn_mpsc_tx: Sender<Vec<u8>>,
         muxed_stream_mpsc_rx: Receiver<Vec<u8>>,
@@ -26,8 +28,8 @@ impl MuxedStream {
         is_initiator: bool,
         remote_peer_info: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
-    ) -> MuxedStream {
-        MuxedStream {
+    ) -> MplexStream {
+        MplexStream {
             muxed_conn_mpsc_tx,
             muxed_stream_mpsc_rx,
             stream_id,
@@ -37,7 +39,14 @@ impl MuxedStream {
         }
     }
 
-    pub async fn write(&self, msg: &Vec<u8>) -> Result<()> {
+    pub fn peer_info(&self) -> PeerInfo {
+        self.remote_peer_info.clone()
+    }
+}
+
+#[async_trait]
+impl IMuxedStream for MplexStream {
+    async fn write(&self, msg: &Vec<u8>) -> Result<()> {
         if self.is_initiator {
             let frame = build_frame(self.stream_id, MuxedStreamFlag::MessageRequest, msg);
             self.muxed_conn_mpsc_tx.send(frame).await?;
@@ -49,14 +58,14 @@ impl MuxedStream {
         Ok(())
     }
 
-    pub async fn read(&mut self) -> Result<Vec<u8>> {
+    async fn read(&mut self) -> Result<Vec<u8>> {
         match self.muxed_stream_mpsc_rx.recv().await {
             Some(payload) => return Ok(payload),
             None => return Err(Error::msg("mpsc receiver down")),
         }
     }
 
-    pub async fn server_handshake(mut self) -> Result<()> {
+    async fn server_handshake(mut self) -> Result<()> {
         let payload = self.read().await.unwrap();
         let protocol = String::from_utf8(payload.clone()).unwrap();
 
@@ -79,7 +88,7 @@ impl MuxedStream {
         Ok(())
     }
 
-    pub async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()> {
+    async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()> {
         let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeReq, &protocol);
         self.muxed_conn_mpsc_tx.send(frame).await?;
 
@@ -98,9 +107,5 @@ impl MuxedStream {
         handler(self).await.unwrap();
 
         Ok(())
-    }
-
-    pub fn peer_info(&self) -> PeerInfo {
-        self.remote_peer_info.clone()
     }
 }

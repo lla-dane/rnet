@@ -1,29 +1,36 @@
 use anyhow::{Ok, Result};
+use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_tcp::TcpConn;
-use rnet_traits::transport::IReadWriteClose;
+use rnet_traits::{conn::IRawConnection, stream::IReadWriteClose};
 
 #[derive(Debug)]
-pub struct RawConnection {
-    pub stream: TcpConn,
+pub struct RawConnection<T>
+where
+    T: IReadWriteClose,
+{
+    pub stream: T,
     pub peer_info: PeerInfo,
     pub is_initiator: bool,
 }
 
-impl RawConnection {
-    pub async fn read(&mut self) -> Result<Vec<u8>> {
+#[async_trait]
+impl<T> IRawConnection<PeerInfo> for RawConnection<T>
+where
+    T: IReadWriteClose + Send,
+{
+    async fn read(&mut self) -> Result<Vec<u8>> {
         Ok(self.stream.recv_msg().await?)
     }
 
-    pub async fn write(&mut self, msg: &Vec<u8>) -> Result<()> {
+    async fn write(&mut self, msg: &Vec<u8>) -> Result<()> {
         Ok(self.stream.send_bytes(msg).await?)
     }
 
-    pub async fn close(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
         Ok(self.stream.close().await?)
     }
 
-    pub fn peer_info(&self) -> PeerInfo {
+    fn peer_info(&self) -> PeerInfo {
         self.peer_info.clone()
     }
 }

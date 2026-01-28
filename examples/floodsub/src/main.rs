@@ -3,7 +3,7 @@ mod cli;
 use anyhow::Result;
 use rnet_floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
 use rnet_host::basic_host::BasicHost;
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MuxedStream};
+use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
 use rnet_multiaddr::Multiaddr;
 use std::{env, sync::Arc, time::Duration};
 use tracing::{debug, info};
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
     let (floodsub, _) = FloodSub::new(local_peer_info).await.unwrap();
 
     let handler_fs = floodsub.clone();
-    let handler: AsyncHandler = Arc::new(move |stream: MuxedStream| {
+    let handler: AsyncHandler = Arc::new(move |stream: MplexStream| {
         let fs = handler_fs.clone();
         Box::pin(async move { fs.stream_handler(stream).await })
     });

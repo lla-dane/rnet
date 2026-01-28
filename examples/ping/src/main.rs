@@ -9,8 +9,9 @@ use rnet_host::{
     basic_host::BasicHost,
     keys::{rsa::RsaKeyPair, Keys},
 };
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MuxedStream};
+use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
 use rnet_multiaddr::Multiaddr;
+use rnet_traits::stream::IMuxedStream;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -19,7 +20,7 @@ use x25519_dalek::PublicKey;
 const PING_LENGTH: usize = 32;
 const IPFS_PING: &str = "/ipfs/ping/1.0.0";
 
-pub async fn handle_ping(stream: &mut MuxedStream) -> Result<()> {
+pub async fn handle_ping(stream: &mut MplexStream) -> Result<()> {
     let payload = vec![0x01; PING_LENGTH];
 
     if stream.is_initiator {
@@ -115,7 +116,7 @@ async fn main() -> Result<()> {
     let peer_data = host.peer_data.lock().await.clone();
 
     let handler: AsyncHandler =
-        Arc::new(|mut stream: MuxedStream| Box::pin(async move { handle_ping(&mut stream).await }));
+        Arc::new(|mut stream: MplexStream| Box::pin(async move { handle_ping(&mut stream).await }));
     host.set_stream_handler(IPFS_PING, handler).unwrap();
 
     let handle = tokio::spawn(async move {

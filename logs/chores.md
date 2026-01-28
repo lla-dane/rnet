@@ -1,4 +1,5 @@
 - [ ]
+- [ ] replace `&Vec<u8>` with `&[u8]` for more performace
 - [ ] revamp the codebase to generic paramater style
 - [ ] add a security stream protocol
 - [ ] maybe look for restructuring multiselect

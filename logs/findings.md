@@ -13,3 +13,9 @@
 - non-generic impl/traits, we have to use concrete type of structs, whose types are defined at runtime. But with generic impl/traits, we can use structs with generic type declaration, like `Foo<f32>` and `Foo<char>` can both use `Value<T>` trait.
 
 - use trait-generics for non-associated types, and for associated type, declare them inside the trait declaration.
+
+- Everytime we use `#[async_trait]`, the async methods return `Send` futures by default. If everything inside the async method is already `Send` -> we won't notice. But if anything captured is not provably `Send` -> the compiler will force
+
+- `Send` is only required when an async future is created and promised to be movable across threads, the promise is generally made by `#[async_trait]`, but we can also opt-out of it. In Rnet infra, I doubt I moved the TcpStreams to multiple threads.
+
+- 

@@ -1,13 +1,15 @@
 use anyhow::Result;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_tcp::TcpConn;
-use rnet_traits::transport::IReadWriteClose;
+use rnet_traits::stream::IReadWriteClose;
 
-pub async fn identify_seq(
+pub async fn identify_seq<T>(
     local_peer_info: &PeerInfo,
-    stream: &mut TcpConn,
+    stream: &mut T,
     is_initiator: bool,
-) -> Result<PeerInfo> {
+) -> Result<PeerInfo>
+where
+    T: IReadWriteClose,
+{
     let peer_info_bytes = bincode::serialize(local_peer_info)?;
     let remote_peer_info: PeerInfo;
 

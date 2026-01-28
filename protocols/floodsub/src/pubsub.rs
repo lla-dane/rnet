@@ -5,9 +5,10 @@ use std::{
 
 use anyhow::Result;
 use prost::Message as ProstMessage;
-use rnet_mplex::mplex_stream::MuxedStream;
+use rnet_mplex::mplex_stream::MplexStream;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
+use rnet_traits::stream::IMuxedStream;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -96,7 +97,7 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn stream_handler(&self, mut stream: MuxedStream) -> Result<()> {
+    pub async fn stream_handler(&self, mut stream: MplexStream) -> Result<()> {
         let peer_id = stream.remote_peer_info.clone().peer_id;
         let (floodsub_peer_mpsc_tx, mut floodsub_peer_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
         let mut notification = VecDeque::<Vec<u8>>::new();

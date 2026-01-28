@@ -1,6 +1,9 @@
-use crate::{headers::MuxedStreamFlag, mplex_stream::MuxedStream};
+use crate::{headers::MuxedStreamFlag, mplex_stream::MplexStream};
 use anyhow::{Error, Result};
+use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
+use rnet_traits::conn::IMuxedConn;
+use rnet_traits::stream::{IMuxedStream, IReadWriteClose};
 use rnet_transport::RawConnection;
 use std::future::Future;
 use std::pin::Pin;
@@ -9,10 +12,13 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
 pub type AsyncHandler =
-    Arc<dyn Fn(MuxedStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+    Arc<dyn Fn(MplexStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
-pub struct MuxedConn {
-    pub raw_conn: RawConnection,
+pub struct MplexConn<T>
+where
+    T: IReadWriteClose,
+{
+    pub raw_conn: RawConnection<T>,
     pub remote_peer_info: PeerInfo,
     pub is_initiator: bool,
     pub streams: HashMap<u32, Sender<Vec<u8>>>,
@@ -22,16 +28,19 @@ pub struct MuxedConn {
     pub mpsc_rx: Receiver<Vec<u8>>,
 }
 
-impl MuxedConn {
+impl<T> MplexConn<T>
+where
+    T: IReadWriteClose,
+{
     pub fn new(
-        raw_conn: RawConnection,
+        raw_conn: RawConnection<T>,
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
         mpsc_tx: Sender<Vec<u8>>,
         mpsc_rx: Receiver<Vec<u8>>,
-    ) -> MuxedConn {
-        MuxedConn {
+    ) -> MplexConn<T> {
+        MplexConn {
             raw_conn,
             remote_peer_info: remote_peer,
             is_initiator,
@@ -42,8 +51,14 @@ impl MuxedConn {
             mpsc_rx,
         }
     }
+}
 
-    pub async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()> {
+#[async_trait]
+impl<T> IMuxedConn for MplexConn<T>
+where
+    T: IReadWriteClose + Send + Sync,
+{
+    async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()> {
         // Process frames, to see the following:
         // - create a new muxed-stream as per the headers
         // - see which stream the payload belongs to, as per the headers
@@ -60,7 +75,7 @@ impl MuxedConn {
                 let (muxed_stream_mpsc_tx, muxed_stream_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
                 if !self.is_initiator {
-                    let stream = MuxedStream::new(
+                    let stream = MplexStream::new(
                         self.mpsc_tx.clone(),
                         muxed_stream_mpsc_rx,
                         stream_id,
@@ -76,7 +91,7 @@ impl MuxedConn {
                     });
                 } else {
                     self._stream_counter += 1;
-                    let stream = MuxedStream::new(
+                    let stream = MplexStream::new(
                         self.mpsc_tx.clone(),
                         muxed_stream_mpsc_rx,
                         self._stream_counter,
@@ -137,7 +152,7 @@ impl MuxedConn {
         Ok(())
     }
 
-    pub async fn write(&self, msg: Vec<u8>) -> Result<()> {
+    async fn write(&self, msg: Vec<u8>) -> Result<()> {
         if let Err(e) = self.mpsc_tx.send(msg).await {
             return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
         }

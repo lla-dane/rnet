@@ -2,19 +2,21 @@ use anyhow::{Error, Ok, Result};
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_tcp::TcpConn;
-use rnet_traits::transport::IReadWriteClose;
+use rnet_traits::stream::IReadWriteClose;
 use rnet_transport::RawConnection;
 
 #[derive(Debug)]
 pub struct MultiselectComm {}
 
 impl MultiselectComm {
-    pub async fn handshake(
+    pub async fn handshake<T>(
         &self,
         local_peer_info: &PeerInfo,
-        mut stream: TcpConn,
-    ) -> Result<RawConnection> {
+        mut stream: T,
+    ) -> Result<RawConnection<T>>
+    where
+        T: IReadWriteClose,
+    {
         // IDENTIFY HANDSHAKE
         self.try_select(&mut stream, MULTISELECT_CONNECT)
             .await
@@ -36,7 +38,10 @@ impl MultiselectComm {
         })
     }
 
-    pub async fn try_select(&self, stream: &mut TcpConn, proto: &str) -> Result<()> {
+    pub async fn try_select<T>(&self, stream: &mut T, proto: &str) -> Result<()>
+    where
+        T: IReadWriteClose,
+    {
         let msg_bytes = stream.recv_msg().await.unwrap();
         let received: String = bincode::deserialize(&msg_bytes)?;
 

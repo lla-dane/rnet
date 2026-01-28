@@ -18,18 +18,18 @@ Each multiplexed stream behaves like an independent, bidirectional channel, whil
 
 ## Core components
 
-- **`MuxedConn`**: This represents a multiplexed connection built on top of a raw transport connection.
+- **`MplexConn`**: This represents a multiplexed connection built on top of a raw transport connection.
 
     It manages:
     - the underlying RawConnection
     - stream ID allocation and tracking
     - a map of active streams and their message channels
     - demultiplexing of incoming frames
-    - forwarding payloads to the appropriate `MuxedStream`
+    - forwarding payloads to the appropriate `MplexStream`
 
     Incoming frames are parsed, classified by flag and stream ID, and routed accordingly.
 
-- **`MuxedStream`**: This represents a single logical stream within a multiplexed connection.
+- **`MplexStream`**: This represents a single logical stream within a multiplexed connection.
 
     It provides:
     - async read and write operations
