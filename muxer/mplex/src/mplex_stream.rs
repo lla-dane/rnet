@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
+use crate::headers::build_frame;
+use crate::{headers::MuxedStreamFlag, mplex::AsyncHandler};
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_traits::stream::IMuxedStream;
 use tokio::sync::mpsc::{Receiver, Sender};
-
-use crate::{
-    headers::MuxedStreamFlag,
-    mplex::{build_frame, AsyncHandler},
-};
 
 pub struct MplexStream {
     muxed_conn_mpsc_tx: Sender<Vec<u8>>,

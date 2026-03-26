@@ -18,4 +18,4 @@
 
 - `Send` is only required when an async future is created and promised to be movable across threads, the promise is generally made by `#[async_trait]`, but we can also opt-out of it. In Rnet infra, I doubt I moved the TcpStreams to multiple threads.
 
-- 
+- Trait objects are written as `&dyn IHostMpscTx`

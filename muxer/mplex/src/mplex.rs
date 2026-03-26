@@ -1,10 +1,15 @@
+use crate::headers::{build_frame, process_header};
 use crate::{headers::MuxedStreamFlag, mplex_stream::MplexStream};
+
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::IMuxedConn;
+use rnet_traits::conn::{IMuxedConn, IRawConnection};
+use rnet_traits::host::IHostMpscTx;
 use rnet_traits::stream::{IMuxedStream, IReadWriteClose};
 use rnet_transport::RawConnection;
+
+use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::result::Result::Ok;
@@ -13,6 +18,8 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 pub type AsyncHandler =
     Arc<dyn Fn(MplexStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+
+const INTERNAL: [u8; 16] = *b"internal-payload";
 
 pub struct MplexConn<T>
 where
@@ -152,6 +159,45 @@ where
         Ok(())
     }
 
+    async fn conn_handler<W>(mut self, peer_id: &str, host_mpsc_tx: &Arc<W>) -> Result<()>
+    where
+        W: IHostMpscTx + Send + Sync,
+    {
+        let mut write_queue = VecDeque::<Vec<u8>>::new();
+
+        loop {
+            tokio::select! {
+                Some(data) = self.mpsc_rx.recv() => {
+                    if data.starts_with(&INTERNAL) {
+                        self.handle_incoming(data[INTERNAL.len()..].to_vec()).await.unwrap();
+                        continue;
+                    }
+                    write_queue.push_back(data);
+                }
+
+                frame = self.raw_conn.read() => {
+                    match frame {
+                        Ok(frames) => {
+                            self.handle_incoming(frames).await.unwrap();
+                        }
+                        Err(_) => {break},
+                    }
+                }
+
+                _ = async {}, if !write_queue.is_empty() => {
+                    let data = write_queue.pop_front().unwrap();
+                    if let Err(_) = self.raw_conn.write(&data).await {
+                        break;
+                    }
+                }
+            }
+        }
+
+        host_mpsc_tx.on_disconnect(peer_id).await.unwrap();
+
+        Ok(())
+    }
+
     async fn write(&self, msg: Vec<u8>) -> Result<()> {
         if let Err(e) = self.mpsc_tx.send(msg).await {
             return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
@@ -161,48 +207,10 @@ where
     }
 }
 
-pub fn process_header(buf: &Vec<u8>) -> Result<(u32, MuxedStreamFlag, usize, usize)> {
-    // decode varint header
-    let (header_val, remaining) = unsigned_varint::decode::u32(buf.as_slice())
-        .map_err(|_| anyhow::anyhow!("invalid varint header"))?;
-
-    // How many bytes were consumed?
-    let header_len = buf.len() - remaining.len();
-
-    let tag = (header_val & 0b111) as u8;
-    let stream_id = header_val >> 3;
-
-    let (payload_len, _) =
-        unsigned_varint::decode::usize(remaining).map_err(|_| anyhow::anyhow!("Invalid length"))?;
-
-    let flag =
-        MuxedStreamFlag::from_tag(tag).ok_or_else(|| anyhow::anyhow!("Invalid mplex flag"))?;
-
-    Ok((stream_id, flag, header_len, payload_len))
-}
-
-pub fn build_frame(stream_id: u32, flag: MuxedStreamFlag, payload: &Vec<u8>) -> Vec<u8> {
-    let mut buf = Vec::new();
-
-    // ---- Encode header varint ----
-    let header_val = (stream_id << 3) | (flag.tag() as u32);
-    let mut header_tmp = [0u8; 5];
-    let header_encoded = unsigned_varint::encode::u32(header_val, &mut header_tmp);
-    buf.extend_from_slice(header_encoded);
-
-    // ---- Encode length varint ----
-    let mut len_tmp = [0u8; 10];
-    let len_encoded = unsigned_varint::encode::usize(payload.len(), &mut len_tmp);
-    buf.extend_from_slice(len_encoded);
-
-    // ---- Payload ----
-    buf.extend_from_slice(payload);
-
-    buf
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::headers::{build_frame, process_header};
+
     use super::*;
 
     #[test]
