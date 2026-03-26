@@ -5,6 +5,7 @@ use rnet_floodsub::{
 };
 use rnet_host::basic_host::HostMpscTx;
 use rnet_multiaddr::Multiaddr;
+use rnet_traits::host::IHostMpscTx;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
@@ -16,9 +17,9 @@ const COMMANDS: &[&str] = &[
     "local                      => get local peer-info",
     "connect <maddr>            => connect with a new peer",
     "new_stream <maddr>         => open a new floodsub stream with the peer",
-    "sub <topic>                => subscribe to a new-topic",
-    "unsub <topic>              => unsubscribe to a new-topic",
-    "pub <topic> <msg>          => publish a msg to a topic",
+    "join <topic>               => subscribe to a new-topic",
+    "leave <topic>              => unsubscribe to a new-topic",
+    "publish <topic> <msg>          => publish a msg to a topic",
     "topics                     => list the subscribed topics",
     "peers                      => list the connected peers",
     "mesh                       => map of topics -> peer",
@@ -59,7 +60,7 @@ async fn handle_cmd(line: &str, host_tx: &Arc<HostMpscTx>, floodsub: &Arc<FloodS
             tokio::time::sleep(Duration::from_millis(300)).await;
         }
 
-        "sub" => {
+        "join" => {
             let topic = parts.next().unwrap().to_string();
             let sub_api = floodsub.subscribe(topic).await.unwrap();
             tokio::spawn(async move {
@@ -67,12 +68,12 @@ async fn handle_cmd(line: &str, host_tx: &Arc<HostMpscTx>, floodsub: &Arc<FloodS
             });
         }
 
-        "unsub" => {
+        "leave" => {
             let topic = parts.next().unwrap().to_string();
             floodsub.unsubscribe(vec![topic]).await.unwrap();
         }
 
-        "pub" => {
+        "publish" => {
             let topic = parts.next().unwrap().to_string();
             let msg = parts.collect::<Vec<_>>().join(" ").as_bytes().to_vec();
 

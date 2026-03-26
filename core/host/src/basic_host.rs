@@ -1,4 +1,5 @@
-use rnet_mplex::mplex::{build_frame, AsyncHandler, MplexConn};
+use async_trait::async_trait;
+use rnet_mplex::{headers::build_frame, mplex::{AsyncHandler, MplexConn}};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -14,7 +15,7 @@ use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::{TcpConn, TcpTransport};
 use rnet_traits::{
     conn::{IMuxedConn, IRawConnection},
-    stream::IReadWriteClose,
+    host::IHostMpscTx,
     transport::ITransport,
 };
 use std::result::Result::Ok;
@@ -154,6 +155,7 @@ impl BasicHost {
             }
         }
 
+        // TODO: Set up a unified transport-opt here
         let stream = TcpTransport::dial(addr).await?;
         self.conn_handler(stream, true).await.unwrap();
 
@@ -244,12 +246,20 @@ impl BasicHost {
 
         //----SPAWN-MUXED-CONN-HANDLER----
         let host_mpsc_tx = self.host_mpsc_tx.clone();
+
         tokio::spawn(async move {
-            host_mpsc_tx
-                .handle_incoming(muxed_conn, remote_peer_info.peer_id.as_str())
+            muxed_conn
+                .conn_handler(&remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
                 .await
                 .unwrap();
         });
+
+        // tokio::spawn(async move {
+        //     host_mpsc_tx
+        //         .handle_incoming(muxed_conn, remote_peer_info.peer_id.as_str())
+        //         .await
+        //         .unwrap();
+        // });
 
         Ok(())
     }
@@ -266,14 +276,15 @@ impl BasicHost {
     }
 }
 
-impl HostMpscTx {
-    pub async fn connect(&self, maddr: &Multiaddr) -> Result<()> {
+#[async_trait]
+impl IHostMpscTx for HostMpscTx {
+    async fn connect(&self, maddr: &Multiaddr) -> Result<()> {
         let frame = build_host_frame(HostMpscTxFlag::Connect, maddr.to_string(), None);
         self.write(frame).await.unwrap();
         Ok(())
     }
 
-    pub async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()> {
+    async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()> {
         let frame = build_host_frame(
             HostMpscTxFlag::NewStream,
             maddr.to_string(),
@@ -283,61 +294,17 @@ impl HostMpscTx {
         Ok(())
     }
 
-    pub async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
+    async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
         let frame = build_host_frame(HostMpscTxFlag::Disconnect, peer_id.to_string(), None);
         self.write(frame).await.unwrap();
         Ok(())
     }
 
-    pub async fn write(&self, notification: Vec<u8>) -> Result<()> {
+    async fn write(&self, notification: Vec<u8>) -> Result<()> {
         if let Err(e) = self.host_mpsc_tx.send(notification).await {
             return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
         }
 
-        Ok(())
-    }
-
-    pub async fn handle_incoming<T>(
-        &self,
-        mut muxed_conn: MplexConn<T>,
-        peer_id: &str,
-    ) -> Result<()>
-    where
-        T: IReadWriteClose + Send + Sync,
-    {
-        let mut write_queue = VecDeque::<Vec<u8>>::new();
-
-        loop {
-            tokio::select! {
-                // TODO: VULNERABILITY HERE
-                Some(data) = muxed_conn.mpsc_rx.recv() => {
-
-                    if data.starts_with(&INTERNAL) {
-                        muxed_conn.handle_incoming(data[INTERNAL.len()..].to_vec()).await.unwrap();
-                        continue;
-                    }
-                    write_queue.push_back(data);
-                }
-
-                frame = muxed_conn.raw_conn.read() => {
-                    match frame {
-                        Ok(frames) => {
-                            muxed_conn.handle_incoming(frames).await.unwrap();
-                        }
-                        Err(_) => {break},
-                    }
-                }
-
-                _ = async {}, if !write_queue.is_empty() => {
-                    let data = write_queue.pop_front().unwrap();
-                    if let Err(_) = muxed_conn.raw_conn.write(&data).await {
-                        break;
-                    }
-                }
-            }
-        }
-
-        self.on_disconnect(peer_id).await.unwrap();
         Ok(())
     }
 }

@@ -11,6 +11,7 @@ use rnet_host::{
 };
 use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
 use rnet_multiaddr::Multiaddr;
+use rnet_traits::host::IHostMpscTx;
 use rnet_traits::stream::IMuxedStream;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
@@ -100,9 +101,7 @@ async fn main() -> Result<()> {
     // let plaintext = alice_cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
 
     // assert_eq!(&plaintext, b"top secret orgy haha");
-    
-    
-    
+
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
     let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
 
