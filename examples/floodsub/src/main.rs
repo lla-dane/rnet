@@ -43,8 +43,7 @@ async fn main() -> Result<()> {
 
     let local_peer_info = {
         let peer_data = host.peer_data.lock().await;
-        let peer_info = peer_data.peer_info.clone();
-        peer_info
+        peer_data.peer_info.clone()
     };
 
     // TODO: DO all these things inside

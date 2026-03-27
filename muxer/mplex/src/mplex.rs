@@ -72,7 +72,7 @@ where
 
         // Extract the stream_id, header adn payload from the received frame
         let (stream_id, flag, _, payload_len) = process_header(&frames)?;
-        let (_, remaining) = unsigned_varint::decode::u32(&frames.as_slice()).unwrap();
+        let (_, remaining) = unsigned_varint::decode::u32(frames.as_slice()).unwrap();
         let (_, payload_after_len) = unsigned_varint::decode::usize(remaining).unwrap();
         let payload_extracted = payload_after_len[..payload_len].to_vec();
 
@@ -113,7 +113,7 @@ where
                     let initiator_frame = build_frame(
                         self._stream_counter,
                         MuxedStreamFlag::NewStream,
-                        &b"".to_vec(),
+                        b"".as_ref(),
                     );
                     self.write(initiator_frame).await.unwrap();
 
@@ -186,7 +186,7 @@ where
 
                 _ = async {}, if !write_queue.is_empty() => {
                     let data = write_queue.pop_front().unwrap();
-                    if let Err(_) = self.raw_conn.write(&data).await {
+                    if self.raw_conn.write(&data).await.is_err() {
                         break;
                     }
                 }

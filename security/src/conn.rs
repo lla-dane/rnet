@@ -21,10 +21,7 @@ where
     T: IReadWriteClose,
 {
     pub fn new(cipher: ChaCha20Poly1305, stream: T) -> Self {
-        Self {
-            cipher: cipher,
-            stream: stream,
-        }
+        Self { cipher, stream }
     }
 }
 
@@ -44,9 +41,9 @@ where
         }
 
         let (nonce_bytes, ciphertext) = bytes.split_at(NONCE_LEN);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Nonce::from_slice(nonce_bytes);
 
-        let plaintext = self.cipher.decrypt(&nonce, ciphertext).unwrap();
+        let plaintext = self.cipher.decrypt(nonce, ciphertext).unwrap();
         Ok(plaintext)
     }
 

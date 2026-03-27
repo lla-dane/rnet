@@ -55,7 +55,7 @@ pub fn process_header(buf: &Vec<u8>) -> Result<(u32, MuxedStreamFlag, usize, usi
     Ok((stream_id, flag, header_len, payload_len))
 }
 
-pub fn build_frame(stream_id: u32, flag: MuxedStreamFlag, payload: &Vec<u8>) -> Vec<u8> {
+pub fn build_frame(stream_id: u32, flag: MuxedStreamFlag, payload: &[u8]) -> Vec<u8> {
     let mut buf = Vec::new();
 
     // ---- Encode header varint ----

@@ -1,6 +1,8 @@
 use anyhow::Result;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::FloodsubPayload;
+
 #[derive(Debug)]
 pub struct SubscriptionAPI {
     pub topic_id: String,
@@ -14,11 +16,11 @@ impl SubscriptionAPI {
         floodsub_mpsc_tx: Sender<Vec<u8>>,
         topic_mpsc_rx: Receiver<Vec<u8>>,
     ) -> Self {
-        return SubscriptionAPI {
+        SubscriptionAPI {
             topic_id,
             floodsub_mpsc_tx,
             topic_mpsc_rx,
-        };
+        }
     }
 
     pub async fn unsubscribe(&self) -> Result<()> {
@@ -58,10 +60,10 @@ pub enum SubAPIMpscFlag {
 
 impl SubAPIMpscFlag {
     pub fn tag(&self) -> u8 {
-        match self {
-            &Self::Unsubscribe => 1,
-            &Self::DeadPeers => 2,
-            &Self::Publish => 3,
+        match *self {
+            Self::Unsubscribe => 1,
+            Self::DeadPeers => 2,
+            Self::Publish => 3,
         }
     }
 
@@ -123,12 +125,7 @@ pub fn build_floodsub_api_frame(
     buf
 }
 
-pub fn process_floodsub_api_frame(
-    payload: Vec<u8>,
-) -> Result<(
-    SubAPIMpscFlag,
-    (Option<String>, Option<Vec<String>>, Option<Vec<u8>>),
-)> {
+pub fn process_floodsub_api_frame(payload: Vec<u8>) -> Result<(SubAPIMpscFlag, FloodsubPayload)> {
     let mut idx = 0;
 
     let tag = payload[idx];
@@ -145,11 +142,7 @@ pub fn process_floodsub_api_frame(
     let s = String::from_utf8(payload[idx..idx + s_len].to_vec()).unwrap();
     idx += s_len;
 
-    let s_payload = if s != "none".to_string() {
-        Some(s)
-    } else {
-        None
-    };
+    let s_payload = if s != "none" { Some(s) } else { None };
 
     // OPTIONAL VEC-PAYLOAD
     let has_vec = payload[idx];

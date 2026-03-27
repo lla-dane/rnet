@@ -9,7 +9,7 @@ pub struct X25519KeyPair {
 
 impl X25519KeyPair {
     pub fn generate() -> Self {
-        let pvt_key = EphemeralSecret::random_from_rng(&mut OsRng);
+        let pvt_key = EphemeralSecret::random_from_rng(OsRng);
         let pub_key = PublicKey::from(&pvt_key);
 
         Self {

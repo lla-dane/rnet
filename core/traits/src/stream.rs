@@ -13,6 +13,8 @@ pub trait IReadWriteClose {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()>;
     async fn recv_msg(&mut self) -> Result<Vec<u8>>;
+
+    #[allow(clippy::ptr_arg)]
     async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()>;
     async fn write(&mut self, buf: &[u8]) -> Result<usize>;
     async fn close(&mut self) -> Result<()>;
@@ -20,6 +22,7 @@ pub trait IReadWriteClose {
 
 #[async_trait]
 pub trait IMuxedStream {
+    #[allow(clippy::ptr_arg)]
     async fn write(&self, msg: &Vec<u8>) -> Result<()>;
     async fn read(&mut self) -> Result<Vec<u8>>;
 

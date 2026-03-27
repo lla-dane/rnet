@@ -1,9 +1,9 @@
 use anyhow::{Error, Result};
 use rnet_traits::stream::IReadWriteClose;
 
-use crate::{conn::SecureConn, deffi_heinman::DHTransport};
+use crate::{conn::SecureConn, deffi_hellman::DHTransport};
 pub mod conn;
-pub mod deffi_heinman;
+pub mod deffi_hellman;
 
 pub const MULTISELECT_CONNECT: &str = "mutilselect/0.0.1";
 pub const DEFFIE_HEINMAN: &str = "rnet/deffi_heinman/0.0.1";
@@ -12,11 +12,17 @@ pub struct SecureTransport {
     pub sec_opts: Vec<String>,
 }
 
+impl Default for SecureTransport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SecureTransport {
     pub fn new() -> Self {
         let sec_opts = vec![String::from("dh")];
 
-        SecureTransport { sec_opts: sec_opts }
+        SecureTransport { sec_opts }
     }
 
     pub async fn secure_conn<T>(&self, stream: T, is_initiator: bool) -> Result<SecureConn<T>>
@@ -100,7 +106,7 @@ impl SecureTransport {
             }
         };
 
-        return Err(Error::msg("Negotiation failed"));
+        Err(Error::msg("Negotiation failed"))
     }
 }
 

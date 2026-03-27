@@ -51,6 +51,6 @@ impl MultiselectComm {
             return Ok(());
         }
 
-        return Err(Error::msg("Negotiation failed"));
+        Err(Error::msg("Negotiation failed"))
     }
 }

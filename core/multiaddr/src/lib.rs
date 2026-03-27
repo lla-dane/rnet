@@ -32,6 +32,19 @@ impl fmt::Display for Protocol {
     }
 }
 
+impl fmt::Display for Multiaddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = self
+            .components
+            .iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>()
+            .join("");
+
+        write!(f, "{}", s)
+    }
+}
+
 /// Example: ip4/127.0.0.1/tcp/8080/p2p/afopponnfsklngllsbgjzafnafangg
 impl Multiaddr {
     pub fn new(addr: &str) -> Result<Self> {
@@ -151,13 +164,6 @@ impl Multiaddr {
         self.components.push(proto);
     }
 
-    pub fn to_string(&self) -> String {
-        self.components
-            .iter()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>()
-            .join("")
-    }
     pub fn push(&mut self, proto: Protocol) {
         self.components.push(proto);
     }

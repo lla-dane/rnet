@@ -29,9 +29,7 @@ impl DHTransport {
                 stream.send_bytes(&pubkey_bytes).await?;
 
                 let response = stream.recv_msg().await.unwrap();
-                let remote_pubkey = PublicKey::from(<[u8; 32]>::try_from(response).unwrap());
-
-                remote_pubkey
+                PublicKey::from(<[u8; 32]>::try_from(response).unwrap())
             }
             false => {
                 let remote_pubkey_bytes = stream.recv_msg().await.unwrap();
@@ -48,7 +46,7 @@ impl DHTransport {
         // Generate the shared-secret
         let shared_secret = local_secret_key.diffie_hellman(&remote_public_key);
         let pre_cipher = Key::from_slice(shared_secret.as_bytes());
-        let cipher_key = ChaCha20Poly1305::new(&pre_cipher);
+        let cipher_key = ChaCha20Poly1305::new(pre_cipher);
 
         Ok(cipher_key)
     }

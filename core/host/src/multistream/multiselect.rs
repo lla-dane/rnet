@@ -53,6 +53,6 @@ impl Multiselect {
             return Ok(());
         }
 
-        return Err(Error::msg("Neogotiation failed"));
+        Err(Error::msg("Neogotiation failed"))
     }
 }

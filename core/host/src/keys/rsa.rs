@@ -100,6 +100,6 @@ impl Keys for RsaKeyPair {
         if result.is_ok() {
             return true;
         }
-        return false;
+        false
     }
 }

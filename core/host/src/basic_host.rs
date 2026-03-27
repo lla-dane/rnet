@@ -29,7 +29,7 @@ use tracing::{debug, info, warn};
 use crate::{
     headers::{build_host_frame, process_host_frame, HostMpscTxFlag},
     keys::rsa::RsaKeyPair,
-    multiselect::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
+    multistream::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
 };
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
@@ -56,7 +56,7 @@ pub struct BasicHost {
 
 impl BasicHost {
     pub async fn new(listen_addr: &mut Multiaddr) -> Result<(Self, Arc<HostMpscTx>)> {
-        let listener = TcpTransport::listen(&listen_addr).await.unwrap();
+        let listener = TcpTransport::listen(listen_addr).await.unwrap();
         let local_addr = listener.get_local_addr().unwrap();
         let parts: Vec<&str> = local_addr.split(':').collect();
 
@@ -188,7 +188,7 @@ impl BasicHost {
         let mut new_stream_frame = build_frame(
             0,
             rnet_mplex::headers::MuxedStreamFlag::NewStream,
-            &format!("{}", protocols[0]).as_bytes().to_vec(),
+            protocols[0].as_bytes(),
         );
         new_stream_frame.splice(0..0, INTERNAL);
         muxed_conn_mpsc_tx.send(new_stream_frame).await.unwrap();
@@ -197,8 +197,7 @@ impl BasicHost {
     pub async fn is_peer_connected(&self, peer_id: &str) -> bool {
         let is_connected = {
             let connections = self.connections.lock().await;
-            let bool = connections.contains_key(peer_id);
-            bool
+            connections.contains_key(peer_id)
         };
 
         is_connected
@@ -268,7 +267,7 @@ impl BasicHost {
 
         tokio::spawn(async move {
             muxed_conn
-                .conn_handler(&remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
+                .conn_handler(remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
                 .await
                 .unwrap();
         });

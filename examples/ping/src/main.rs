@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
         host.run().await.unwrap();
     });
 
-    if mode == "server".to_string() {
+    if mode == "server" {
         info!(
             "Run in new terminal: \ncargo run --bin ping --release {:?}",
             peer_data.peer_info.listen_addr.to_string()
