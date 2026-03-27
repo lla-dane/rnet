@@ -1,5 +1,9 @@
 use async_trait::async_trait;
-use rnet_mplex::{headers::build_frame, mplex::{AsyncHandler, MplexConn}};
+use rnet_mplex::{
+    headers::build_frame,
+    mplex::{AsyncHandler, MplexConn},
+};
+use rnet_security::SecureTransport;
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -12,10 +16,11 @@ use tokio::sync::{
 use anyhow::{Error, Result};
 use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
-use rnet_tcp::{TcpConn, TcpTransport};
+use rnet_tcp::TcpTransport;
 use rnet_traits::{
     conn::{IMuxedConn, IRawConnection},
     host::IHostMpscTx,
+    stream::IReadWriteClose,
     transport::ITransport,
 };
 use std::result::Result::Ok;
@@ -24,7 +29,7 @@ use tracing::{debug, info, warn};
 use crate::{
     headers::{build_host_frame, process_host_frame, HostMpscTxFlag},
     keys::rsa::RsaKeyPair,
-    multiselect::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
+    multistream::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
 };
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
@@ -41,6 +46,7 @@ pub struct BasicHost {
     pub peer_data: Arc<Mutex<PeerData>>,
     pub connections: Arc<Mutex<HashMap<String, Sender<Vec<u8>>>>>,
     pub stream_handlers: HashMap<String, String>,
+    pub secure_transport: SecureTransport,
     pub multiselect: Multiselect,
     pub multiselect_comm: MultiselectComm,
     pub handlers: HashMap<String, AsyncHandler>,
@@ -50,7 +56,7 @@ pub struct BasicHost {
 
 impl BasicHost {
     pub async fn new(listen_addr: &mut Multiaddr) -> Result<(Self, Arc<HostMpscTx>)> {
-        let listener = TcpTransport::listen(&listen_addr).await.unwrap();
+        let listener = TcpTransport::listen(listen_addr).await.unwrap();
         let local_addr = listener.get_local_addr().unwrap();
         let parts: Vec<&str> = local_addr.split(':').collect();
 
@@ -84,6 +90,7 @@ impl BasicHost {
                 })),
                 connections: Arc::new(Mutex::new(HashMap::new())),
                 stream_handlers: HashMap::new(),
+                secure_transport: SecureTransport::new(),
                 multiselect: Multiselect {},
                 multiselect_comm: MultiselectComm {},
                 handlers: HashMap::new(),
@@ -181,7 +188,7 @@ impl BasicHost {
         let mut new_stream_frame = build_frame(
             0,
             rnet_mplex::headers::MuxedStreamFlag::NewStream,
-            &format!("{}", protocols[0]).as_bytes().to_vec(),
+            protocols[0].as_bytes(),
         );
         new_stream_frame.splice(0..0, INTERNAL);
         muxed_conn_mpsc_tx.send(new_stream_frame).await.unwrap();
@@ -190,14 +197,16 @@ impl BasicHost {
     pub async fn is_peer_connected(&self, peer_id: &str) -> bool {
         let is_connected = {
             let connections = self.connections.lock().await;
-            let bool = connections.contains_key(peer_id);
-            bool
+            connections.contains_key(peer_id)
         };
 
         is_connected
     }
 
-    pub async fn conn_handler(&self, stream: TcpConn, is_initiator: bool) -> Result<()> {
+    pub async fn conn_handler<T>(&self, stream: T, is_initiator: bool) -> Result<()>
+    where
+        T: IReadWriteClose + Send + Sync + 'static,
+    {
         let local_peer_info = {
             let data = self.peer_data.lock().await;
             data.peer_info.clone()
@@ -208,12 +217,21 @@ impl BasicHost {
         // stream_multiplexer upgrade
         // Active protocol negotiation
 
+        // -------SECURITY-------
+        let secured_conn = self
+            .secure_transport
+            .secure_conn(stream, is_initiator)
+            .await
+            .unwrap();
+
         // -------IDENTIFY-------
         let raw_conn = if !is_initiator {
-            self.multiselect.handshake(&local_peer_info, stream).await?
+            self.multiselect
+                .handshake(&local_peer_info, secured_conn)
+                .await?
         } else {
             self.multiselect_comm
-                .handshake(&local_peer_info, stream)
+                .handshake(&local_peer_info, secured_conn)
                 .await?
         };
 
@@ -249,17 +267,10 @@ impl BasicHost {
 
         tokio::spawn(async move {
             muxed_conn
-                .conn_handler(&remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
+                .conn_handler(remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
                 .await
                 .unwrap();
         });
-
-        // tokio::spawn(async move {
-        //     host_mpsc_tx
-        //         .handle_incoming(muxed_conn, remote_peer_info.peer_id.as_str())
-        //         .await
-        //         .unwrap();
-        // });
 
         Ok(())
     }

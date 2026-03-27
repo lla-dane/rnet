@@ -88,7 +88,7 @@ impl ITransport<TcpConn> for TcpTransport {
         let addr = format!("{}:{}", local_ip, port);
 
         let listener = TcpListener::bind(addr).await?;
-        Ok(Self { listener: listener })
+        Ok(Self { listener })
     }
 
     async fn accept(&self) -> Result<(TcpConn, SocketAddr)> {

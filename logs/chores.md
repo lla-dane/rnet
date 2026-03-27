@@ -1,4 +1,6 @@
 - [ ]
+- [ ] think if somethign better for try_select could be done
+- [ ] separate the module for keys
 - [ ] replace `&Vec<u8>` with `&[u8]` for more performace
 - [ ] revamp the codebase to generic paramater style
 - [ ] add a security stream protocol

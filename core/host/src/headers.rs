@@ -1,5 +1,7 @@
 use anyhow::Result;
 
+type HeaderValue = (String, Option<Vec<String>>);
+
 #[derive(Debug, Clone)]
 pub enum HostMpscTxFlag {
     NewStream,
@@ -9,10 +11,10 @@ pub enum HostMpscTxFlag {
 
 impl HostMpscTxFlag {
     pub fn tag(&self) -> u8 {
-        match self {
-            &Self::NewStream => 1,
-            &Self::Connect => 2,
-            &Self::Disconnect => 3,
+        match *self {
+            Self::NewStream => 1,
+            Self::Connect => 2,
+            Self::Disconnect => 3,
         }
     }
 
@@ -58,9 +60,7 @@ pub fn build_host_frame(
     buf
 }
 
-pub fn process_host_frame(
-    payload: Vec<u8>,
-) -> Result<(HostMpscTxFlag, (String, Option<Vec<String>>))> {
+pub fn process_host_frame(payload: Vec<u8>) -> Result<(HostMpscTxFlag, HeaderValue)> {
     let mut idx = 0;
 
     let tag = payload[idx];

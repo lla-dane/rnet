@@ -16,6 +16,7 @@ members = [
     "examples/tcp",
     "examples/ping",
     "examples/floodsub",
+    "security"    
 ]
 
 

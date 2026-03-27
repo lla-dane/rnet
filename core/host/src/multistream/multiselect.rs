@@ -2,22 +2,23 @@ use anyhow::{Error, Ok, Result};
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::stream::IReadWriteClose;
+use rnet_traits::conn::ISecuredConn;
 use rnet_transport::RawConnection;
 
 #[derive(Debug)]
-pub struct MultiselectComm {}
+pub struct Multiselect {}
 
-impl MultiselectComm {
+impl Multiselect {
     pub async fn handshake<T>(
         &self,
         local_peer_info: &PeerInfo,
         mut stream: T,
     ) -> Result<RawConnection<T>>
     where
-        T: IReadWriteClose,
+        T: ISecuredConn,
     {
         // IDENTIFY HANDSHAKE
+
         self.try_select(&mut stream, MULTISELECT_CONNECT)
             .await
             .expect("Multiselect handshake failed");
@@ -27,7 +28,7 @@ impl MultiselectComm {
             .expect("Identify handshake failed");
 
         // Now run the IDENTIFY sequence
-        let peer_info = identify_seq(local_peer_info, &mut stream, true)
+        let peer_info = identify_seq(local_peer_info, &mut stream, false)
             .await
             .expect("Identify handshake failed");
 
@@ -40,17 +41,18 @@ impl MultiselectComm {
 
     pub async fn try_select<T>(&self, stream: &mut T, proto: &str) -> Result<()>
     where
-        T: IReadWriteClose,
+        T: ISecuredConn,
     {
-        let msg_bytes = stream.recv_msg().await.unwrap();
+        let proto_bytes = bincode::serialize(&proto)?;
+        stream.write(&proto_bytes).await?;
+
+        let msg_bytes = stream.read().await.unwrap();
         let received: String = bincode::deserialize(&msg_bytes)?;
 
         if received.as_str() == proto {
-            let proto_bytes = bincode::serialize(&proto)?;
-            stream.send_bytes(&proto_bytes).await.unwrap();
             return Ok(());
         }
 
-        return Err(Error::msg("Negotiation failed"));
+        Err(Error::msg("Neogotiation failed"))
     }
 }

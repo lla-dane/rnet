@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     sync::Arc,
 };
 
@@ -159,7 +159,7 @@ impl FloodSub {
         if self
             .get_subscribed_topics()
             .await
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(Vec::new)
             .contains(&topic_id)
         {
             warn!("Already subscribed to the topic: {}", topic_id);
@@ -243,7 +243,7 @@ impl FloodSub {
                 String::from_utf8_lossy(publish_msg.from()).to_string(),
             )
             .await
-            .unwrap_or_else(|| HashSet::new());
+            .unwrap_or_else(HashSet::new);
 
         let mut rpc_msg = Rpc::default();
         rpc_msg.publish.push(publish_msg.clone());
@@ -266,7 +266,7 @@ impl FloodSub {
         // - notify subscriptions
         // - publish msg
 
-        let origin = String::from_utf8_lossy(&publish_msg.from().to_vec()).to_string();
+        let origin = String::from_utf8_lossy(publish_msg.from()).to_string();
         let subscribed_topics = self.get_subscribed_topics().await.unwrap();
 
         if origin == self.local_peer_info.peer_id {
@@ -308,7 +308,7 @@ impl FloodSub {
 
     pub async fn is_msg_seen(&self, publish_msg: &Message) -> bool {
         let origin_id: Vec<u8> = publish_msg.from().to_vec();
-        let seqno_int: u64 = seqno_to_unix_tx(&publish_msg.seqno().to_vec()).unwrap();
+        let seqno_int: u64 = seqno_to_unix_tx(publish_msg.seqno()).unwrap();
 
         let key = MessageKey {
             from: origin_id,
@@ -322,11 +322,11 @@ impl FloodSub {
 
         let mut cache = self.last_seen_cache.lock().await;
 
-        if cache.contains_key(&key) {
-            return true;
+        if let Entry::Vacant(e) = cache.entry(key) {
+            e.insert(now);
+            false
         } else {
-            cache.insert(key, now);
-            return false;
+            true
         }
     }
 
@@ -427,7 +427,7 @@ impl FloodSub {
             return Some(peers_to_send);
         }
 
-        return None;
+        None
     }
 
     pub async fn get_subscribed_topics(&self) -> Option<Vec<String>> {
@@ -436,8 +436,8 @@ impl FloodSub {
             store
                 .subscribed_topic_api
                 .keys()
-                .map(|x| x.clone())
-                .collect()
+                .cloned()
+                .collect::<Vec<_>>()
         };
 
         if !topics.is_empty() {
@@ -450,7 +450,7 @@ impl FloodSub {
     pub async fn get_connected_peers(&self) -> Option<Vec<String>> {
         let peers: Vec<String> = {
             let store = self.floodsub_store.lock().await;
-            store.peers.keys().map(|x| x.clone()).collect()
+            store.peers.keys().cloned().collect()
         };
 
         if !peers.is_empty() {
@@ -463,11 +463,10 @@ impl FloodSub {
     pub async fn get_floodsub_mesh(&self) -> HashMap<String, Vec<String>> {
         let peer_topics = {
             let store = self.floodsub_store.lock().await;
-            let peer_topics = store.peer_topics.clone();
-            peer_topics
+            store.peer_topics.clone()
         };
 
-        return peer_topics;
+        peer_topics
     }
 
     pub fn get_local(&self) -> Result<PeerInfo> {
@@ -484,11 +483,9 @@ impl FloodSub {
                         topic_id: Some(topic_id),
                     });
                 }
-                return Some(rpc);
+                Some(rpc)
             }
-            None => {
-                return None;
-            }
+            None => None,
         }
     }
 }

@@ -16,6 +16,8 @@ use crate::{
 pub mod pubsub;
 pub mod subscription;
 
+type FloodsubPayload = (Option<String>, Option<Vec<String>>, Option<Vec<u8>>);
+
 const LAST_SEEN_TTL: u64 = 120;
 const MESSAGE_CACHE_CLEANUP: Duration = Duration::from_secs(100);
 
@@ -31,7 +33,7 @@ pub async fn handle_floodsub_api(floodsub: Arc<FloodSub>, mut floodsub_mpsc_rx: 
             _ = async {}, if !notification.is_empty() => {
                 let frame = notification.pop_front().unwrap();
 
-                let (flag, (_, opt_vec_pld, opt_data)): (SubAPIMpscFlag, (Option<String>, Option<Vec<String>>, Option<Vec<u8>>)) = process_floodsub_api_frame(frame).unwrap();
+                let (flag, (_, opt_vec_pld, opt_data)): (SubAPIMpscFlag, FloodsubPayload) = process_floodsub_api_frame(frame).unwrap();
                 match flag {
                     SubAPIMpscFlag::DeadPeers => {
                         floodsub.handle_dead_peers(opt_vec_pld.unwrap())
@@ -82,7 +84,7 @@ pub fn get_seqno() -> Vec<u8> {
     unix_ts.to_le_bytes().to_vec()
 }
 
-pub fn seqno_to_unix_tx(seqno: &Vec<u8>) -> Option<u64> {
+pub fn seqno_to_unix_tx(seqno: &[u8]) -> Option<u64> {
     if seqno.len() != 8 {
         return None;
     }

@@ -1,12 +1,12 @@
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{conn::IRawConnection, stream::IReadWriteClose};
+use rnet_traits::conn::{IRawConnection, ISecuredConn};
 
 #[derive(Debug)]
 pub struct RawConnection<T>
 where
-    T: IReadWriteClose,
+    T: ISecuredConn,
 {
     pub stream: T,
     pub peer_info: PeerInfo,
@@ -16,14 +16,14 @@ where
 #[async_trait]
 impl<T> IRawConnection<PeerInfo> for RawConnection<T>
 where
-    T: IReadWriteClose + Send,
+    T: ISecuredConn + Send,
 {
     async fn read(&mut self) -> Result<Vec<u8>> {
-        Ok(self.stream.recv_msg().await?)
+        Ok(self.stream.read().await?)
     }
 
     async fn write(&mut self, msg: &Vec<u8>) -> Result<()> {
-        Ok(self.stream.send_bytes(msg).await?)
+        Ok(self.stream.write(msg).await?)
     }
 
     async fn close(&mut self) -> Result<()> {

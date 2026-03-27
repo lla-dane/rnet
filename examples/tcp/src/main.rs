@@ -25,9 +25,9 @@ async fn main() -> Result<()> {
         destination = &args[1];
     }
 
-    if mode == "server".to_string() {
-        let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-        let listener = TcpTransport::listen(&mut listen_addr).await.unwrap();
+    if mode == "server" {
+        let listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
+        let listener = TcpTransport::listen(&listen_addr).await.unwrap();
         debug!(
             "Run in another terminal: cargo run -- {}",
             listener.get_local_addr().unwrap()
