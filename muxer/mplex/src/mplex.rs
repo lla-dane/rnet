@@ -4,9 +4,9 @@ use crate::{headers::MuxedStreamFlag, mplex_stream::MplexStream};
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::{IMuxedConn, IRawConnection};
+use rnet_traits::conn::{IMuxedConn, IRawConnection, ISecuredConn};
 use rnet_traits::host::IHostMpscTx;
-use rnet_traits::stream::{IMuxedStream, IReadWriteClose};
+use rnet_traits::stream::IMuxedStream;
 use rnet_transport::RawConnection;
 
 use std::collections::VecDeque;
@@ -23,7 +23,7 @@ const INTERNAL: [u8; 16] = *b"internal-payload";
 
 pub struct MplexConn<T>
 where
-    T: IReadWriteClose,
+    T: ISecuredConn,
 {
     pub raw_conn: RawConnection<T>,
     pub remote_peer_info: PeerInfo,
@@ -37,7 +37,7 @@ where
 
 impl<T> MplexConn<T>
 where
-    T: IReadWriteClose,
+    T: ISecuredConn,
 {
     pub fn new(
         raw_conn: RawConnection<T>,
@@ -63,7 +63,7 @@ where
 #[async_trait]
 impl<T> IMuxedConn for MplexConn<T>
 where
-    T: IReadWriteClose + Send + Sync,
+    T: ISecuredConn + Send + Sync,
 {
     async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()> {
         // Process frames, to see the following:

@@ -10,6 +10,13 @@ use async_trait::async_trait;
 use crate::host::IHostMpscTx;
 
 #[async_trait]
+pub trait ISecuredConn {
+    async fn read(&mut self) -> Result<Vec<u8>>;
+    async fn write(&mut self, msg: &Vec<u8>) -> Result<()>;
+    async fn close(&mut self) -> Result<()>;
+}
+
+#[async_trait]
 pub trait IRawConnection<T> {
     async fn read(&mut self) -> Result<Vec<u8>>;
     async fn write(&mut self, msg: &Vec<u8>) -> Result<()>;

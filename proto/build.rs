@@ -3,7 +3,7 @@ fn main() {
     config
         .compile_protos(
             &["proto/floodsub.proto", "proto/gossipsub.proto"], // All your files
-            &["proto/"],                                    // Include paths
+            &["proto/"],                                        // Include paths
         )
         .unwrap();
 }

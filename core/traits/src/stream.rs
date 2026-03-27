@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 /// Transport stream have to implement this trait
-/// i.e `TcpStream` `UdpStream` `QuicStream` 
+/// i.e `TcpStream` `UdpStream` `QuicStream`
 #[async_trait]
 pub trait IReadWriteClose {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
@@ -25,5 +25,5 @@ pub trait IMuxedStream {
 
     // Merge these 2 handshake functions in the future
     async fn server_handshake(mut self) -> Result<()>;
-    async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()>; 
+    async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()>;
 }
