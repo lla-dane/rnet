@@ -139,8 +139,8 @@ mod tests {
         let alice_key = chacha20poly1305::Key::from_slice(alice_shared_secret.as_bytes());
         let bob_key = chacha20poly1305::Key::from_slice(bob_shared_secret.as_bytes());
 
-        let alice_cipher = ChaCha20Poly1305::new(&alice_key);
-        let bob_cipher = ChaCha20Poly1305::new(&bob_key);
+        let alice_cipher = ChaCha20Poly1305::new(alice_key);
+        let bob_cipher = ChaCha20Poly1305::new(bob_key);
 
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
         let nonce_bytes: Vec<u8> = nonce.to_vec();
@@ -148,17 +148,17 @@ mod tests {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         let ciphertext = alice_cipher
-            .encrypt(&nonce, b"top secret orgy".as_ref())
+            .encrypt(nonce, b"top secret orgy".as_ref())
             .unwrap();
-        let plaintext = bob_cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+        let plaintext = bob_cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
 
         println!("{:?}", ciphertext);
         println!("{:?}", plaintext);
 
         let ciphertext = bob_cipher
-            .encrypt(&nonce, b"top secret orgy haha".as_ref())
+            .encrypt(nonce, b"top secret orgy haha".as_ref())
             .unwrap();
-        let plaintext = alice_cipher.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+        let plaintext = alice_cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
 
         assert_eq!(&plaintext, b"top secret orgy haha");
     }
