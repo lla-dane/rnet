@@ -9,55 +9,6 @@ use rnet_transport::RawConnection;
 #[derive(Debug)]
 pub struct Multiselect {}
 
-// impl Multiselect {
-//     pub async fn handshake<T>(
-//         &self,
-//         local_peer_info: &PeerInfo,
-//         mut stream: T,
-//     ) -> Result<RawConnection<T>>
-//     where
-//         T: ISecuredConn,
-//     {
-//         // IDENTIFY HANDSHAKE
-
-//         self.try_select(&mut stream, MULTISELECT_CONNECT)
-//             .await
-//             .expect("Multiselect handshake failed");
-
-//         self.try_select(&mut stream, IDENTIFY)
-//             .await
-//             .expect("Identify handshake failed");
-
-//         // Now run the IDENTIFY sequence
-//         let peer_info = identify_seq(local_peer_info, &mut stream, false)
-//             .await
-//             .expect("Identify handshake failed");
-
-//         Ok(RawConnection {
-//             stream,
-//             peer_info,
-//             is_initiator: false,
-//         })
-//     }
-
-//     pub async fn try_select<T>(&self, stream: &mut T, proto: &str) -> Result<()>
-//     where
-//         T: ISecuredConn,
-//     {
-//         let proto_bytes = bincode::serialize(&proto)?;
-//         stream.write(&proto_bytes).await?;
-
-//         let msg_bytes = stream.read().await.unwrap();
-//         let received: String = bincode::deserialize(&msg_bytes)?;
-
-//         if received.as_str() == proto {
-//             return Ok(());
-//         }
-
-//         Err(Error::msg("Neogotiation failed"))
-//     }
-// }
-
 #[async_trait]
 impl<T> IMultistream<T, RawConnection<T>, PeerInfo> for Multiselect
 where
