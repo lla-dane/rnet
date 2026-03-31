@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "core",
+    "core/keys",
     "core/traits",
     "core/host",
     "core/multiaddr",

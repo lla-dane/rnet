@@ -1,9 +1,11 @@
 use async_trait::async_trait;
+use rnet_keys::rsa::RsaKeyPair;
 use rnet_mplex::{
     headers::build_frame,
     mplex::{AsyncHandler, MplexConn},
 };
-use rnet_security::SecureTransport;
+use rnet_security::{conn::SecureConn, SecureTransport};
+use rnet_transport::RawConnection;
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -19,7 +21,7 @@ use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::TcpTransport;
 use rnet_traits::{
     conn::{IMuxedConn, IRawConnection},
-    host::IHostMpscTx,
+    host::{IHostMpscTx, IMultistream},
     stream::IReadWriteClose,
     transport::ITransport,
 };
@@ -28,8 +30,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     headers::{build_host_frame, process_host_frame, HostMpscTxFlag},
-    keys::rsa::RsaKeyPair,
-    multistream::{multiselect::Multiselect, mutilselect_com::MultiselectComm},
+    multistream::multiselect::Multiselect,
 };
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
@@ -48,7 +49,6 @@ pub struct BasicHost {
     pub stream_handlers: HashMap<String, String>,
     pub secure_transport: SecureTransport,
     pub multiselect: Multiselect,
-    pub multiselect_comm: MultiselectComm,
     pub handlers: HashMap<String, AsyncHandler>,
     pub host_mpsc_tx: Arc<HostMpscTx>,
     pub host_mpsc_rx: Receiver<Vec<u8>>,
@@ -92,7 +92,6 @@ impl BasicHost {
                 stream_handlers: HashMap::new(),
                 secure_transport: SecureTransport::new(),
                 multiselect: Multiselect {},
-                multiselect_comm: MultiselectComm {},
                 handlers: HashMap::new(),
                 host_mpsc_tx: host_tx.clone(),
                 host_mpsc_rx,
@@ -142,8 +141,6 @@ impl BasicHost {
                             self.on_disconnect(peer_id).await.unwrap();
                         },
                     }
-
-
                 }
 
             }
@@ -225,15 +222,11 @@ impl BasicHost {
             .unwrap();
 
         // -------IDENTIFY-------
-        let raw_conn = if !is_initiator {
-            self.multiselect
-                .handshake(&local_peer_info, secured_conn)
-                .await?
-        } else {
-            self.multiselect_comm
-                .handshake(&local_peer_info, secured_conn)
-                .await?
-        };
+        let raw_conn: RawConnection<SecureConn<T>> = self
+            .multiselect
+            .handshake(&local_peer_info, secured_conn, is_initiator)
+            .await
+            .unwrap();
 
         // ------TODO:-RUN-STREAM-MUXER-UPDATE-----
 

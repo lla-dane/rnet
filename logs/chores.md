@@ -1,9 +1,10 @@
 - [ ]
+- [ ] separate the network components into a netowrk-component
 - [ ] think if somethign better for try_select could be done
 - [ ] separate the module for keys
 - [ ] replace `&Vec<u8>` with `&[u8]` for more performace
-- [ ] revamp the codebase to generic paramater style
-- [ ] add a security stream protocol
+- [x] revamp the codebase to generic paramater style
+- [x] add a security stream protocol
 - [ ] maybe look for restructuring multiselect
 - [ ] look for encrypt/decrypt utils for keys-types
 - [ ] shift all protocol ids to core/lib.rs
