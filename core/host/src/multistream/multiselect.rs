@@ -28,13 +28,13 @@ where
             .await
             .expect("Identify handshake failed");
 
-        let peer_info = identify_seq(local_peer_info, &mut stream, true)
+        let remote = identify_seq(local_peer_info, &mut stream, is_initiator)
             .await
             .expect("Identify handshake failed");
 
         Ok(RawConnection {
             stream,
-            peer_info,
+            peer_info: remote,
             is_initiator: false,
         })
     }

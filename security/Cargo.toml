@@ -17,4 +17,3 @@ rnet-tcp = { path = "../transport/tcp" }
 rnet-traits = { path = "../core/traits" }
 rnet-multiaddr = { path = "../core/multiaddr" }
 rnet-peer = { path = "../core/peer" }
-rnet-mplex = { path = "../muxer/mplex" }

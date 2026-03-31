@@ -3,8 +3,8 @@ mod cli;
 use anyhow::Result;
 use rnet_floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
 use rnet_host::basic_host::BasicHost;
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
 use rnet_multiaddr::Multiaddr;
+use rnet_muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
 use std::sync::Arc;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
 
     let local_peer_info = {
-        let peer_data = host.peer_data.lock().await;
+        let peer_data = host.peerstore.lock().await;
         peer_data.peer_info.clone()
     };
 

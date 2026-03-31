@@ -21,7 +21,6 @@ rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
 rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
-rnet-mplex = { path = "../../muxer/mplex" }
 rnet-transport = { path = "../../transport" }
 rnet-security = { path = "../../security" }
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rnet_host::basic_host::BasicHost;
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
 use rnet_multiaddr::Multiaddr;
+use rnet_muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
 use rnet_traits::host::IHostMpscTx;
 use rnet_traits::stream::IMuxedStream;
 use std::{env, sync::Arc};
@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
         destination = &args[1];
     }
 
-    let peer_data = host.peer_data.lock().await.clone();
+    let peer_data = host.peerstore.lock().await.clone();
 
     let handler: AsyncHandler =
         Arc::new(|mut stream: MplexStream| Box::pin(async move { handle_ping(&mut stream).await }));

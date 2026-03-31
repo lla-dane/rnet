@@ -1,13 +1,17 @@
 - [ ]
+- [ ] prioritize the sec/muxer-opts priority
+- [x] remove the generic argument of IRawConnection
+- [ ] update file-names ad get_correct code placement
+- [ ] specify the protocols while creating the host instance, rather than `host.set_stream_handler()`
+- [ ] Transport stuct -> generic
 - [ ] separate the network components into a netowrk-component
-- [ ] think if somethign better for try_select could be done
-- [ ] separate the module for keys
+- [x] think if somethign better for try_select could be done
+- [x] separate the module for keys
 - [ ] replace `&Vec<u8>` with `&[u8]` for more performace
 - [x] revamp the codebase to generic paramater style
 - [x] add a security stream protocol
-- [ ] maybe look for restructuring multiselect
+- [x] maybe look for restructuring multiselect
 - [ ] look for encrypt/decrypt utils for keys-types
-- [ ] shift all protocol ids to core/lib.rs
 - [ ] set up custom error handling structs
 - [ ] make rnet event driven, push the updates of each protocols as events
 - [ ] make a universal internal mpsc-tx header generator utility

@@ -14,7 +14,7 @@ where
 }
 
 #[async_trait]
-impl<T> IRawConnection<PeerInfo> for RawConnection<T>
+impl<T> IRawConnection for RawConnection<T>
 where
     T: ISecuredConn + Send,
 {
@@ -29,8 +29,13 @@ where
     async fn close(&mut self) -> Result<()> {
         Ok(self.stream.close().await?)
     }
+}
 
-    fn peer_info(&self) -> PeerInfo {
+impl<T> RawConnection<T>
+where
+    T: ISecuredConn,
+{
+    pub fn peer_info(&self) -> PeerInfo {
         self.peer_info.clone()
     }
 }

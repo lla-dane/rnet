@@ -1,13 +1,9 @@
-use crate::headers::{build_frame, process_header};
-use crate::{headers::MuxedStreamFlag, mplex_stream::MplexStream};
-
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::{IMuxedConn, IRawConnection, ISecuredConn};
+use rnet_traits::conn::{IMuxedConn, IRawConnection};
 use rnet_traits::host::IHostMpscTx;
 use rnet_traits::stream::IMuxedStream;
-use rnet_transport::RawConnection;
 
 use std::collections::VecDeque;
 use std::future::Future;
@@ -16,16 +12,20 @@ use std::result::Result::Ok;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
+use crate::mplex::headers::{build_frame, process_header, MuxedStreamFlag};
+use crate::mplex::stream::MplexStream;
+
 pub type AsyncHandler =
     Arc<dyn Fn(MplexStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
+pub const MPLEX: &str = "rnet/mplex/0.0.1";
 
 pub struct MplexConn<T>
 where
-    T: ISecuredConn,
+    T: IRawConnection,
 {
-    pub raw_conn: RawConnection<T>,
+    pub raw_conn: T,
     pub remote_peer_info: PeerInfo,
     pub is_initiator: bool,
     pub streams: HashMap<u32, Sender<Vec<u8>>>,
@@ -37,10 +37,10 @@ where
 
 impl<T> MplexConn<T>
 where
-    T: ISecuredConn,
+    T: IRawConnection,
 {
     pub fn new(
-        raw_conn: RawConnection<T>,
+        raw_conn: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
@@ -63,7 +63,7 @@ where
 #[async_trait]
 impl<T> IMuxedConn for MplexConn<T>
 where
-    T: ISecuredConn + Send + Sync,
+    T: IRawConnection + Send + Sync,
 {
     async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()> {
         // Process frames, to see the following:
@@ -209,8 +209,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::headers::{build_frame, process_header};
-
     use super::*;
 
     #[test]

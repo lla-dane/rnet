@@ -13,11 +13,11 @@ members = [
     "transport",
     "transport/tcp",
     "transport/udp",
-    "muxer/mplex",
+    "muxer",
     "examples/tcp",
     "examples/ping",
     "examples/floodsub",
-    "security"    
+    "security",
 ]
 
 

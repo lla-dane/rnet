@@ -10,6 +10,7 @@ pub async fn identify_seq<T>(
 where
     T: ISecuredConn,
 {
+    println!("reached here");
     let peer_info_bytes = bincode::serialize(local_peer_info)?;
     let remote_peer_info: PeerInfo;
 
@@ -17,11 +18,11 @@ where
         // we send first, then receive
         stream.write(&peer_info_bytes).await?;
 
-        let remote_peer_info_bytes = stream.read().await?;
+        let remote_peer_info_bytes = stream.read().await.unwrap();
         remote_peer_info = bincode::deserialize(&remote_peer_info_bytes)?;
     } else {
         // we receive first, then send
-        let remote_peer_info_bytes = stream.read().await?;
+        let remote_peer_info_bytes = stream.read().await.unwrap();
         remote_peer_info = bincode::deserialize(&remote_peer_info_bytes)?;
 
         stream.write(&peer_info_bytes).await?;

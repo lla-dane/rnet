@@ -18,6 +18,11 @@ impl Default for SecureTransport {
     }
 }
 
+/// secure_conn
+/// handshake_inbound
+/// handshake_outbound
+/// try_select
+/// select_transport
 impl SecureTransport {
     pub fn new() -> Self {
         let sec_opts = vec![String::from("dh")];
@@ -29,13 +34,10 @@ impl SecureTransport {
     where
         T: IReadWriteClose,
     {
-        match is_initiator {
-            true => return Ok(self.handshake_inbound(stream).await.unwrap()),
-            false => return Ok(self.handshake_outbound(stream).await.unwrap()),
-        }
+        Ok(self.handshake(stream, is_initiator).await.unwrap())
     }
 
-    pub async fn handshake_inbound<T>(&self, mut stream: T) -> Result<SecureConn<T>>
+    pub async fn handshake<T>(&self, mut stream: T, is_initiator: bool) -> Result<SecureConn<T>>
     where
         T: IReadWriteClose,
     {
@@ -44,33 +46,15 @@ impl SecureTransport {
         // TODO: Do this property as per sec-opts priority
 
         // For now the default security transport is deffi-heinman key exchange
-        self.try_select(&mut stream, MULTISELECT_CONNECT, false)
+        self.try_select(&mut stream, MULTISELECT_CONNECT, is_initiator)
             .await?;
 
-        self.try_select(&mut stream, DEFFIE_HEINMAN, false).await?;
+        self.try_select(&mut stream, DEFFIE_HEINMAN, is_initiator)
+            .await?;
 
         // Inititate DEFFIE-HEINMAN shared-key exchange
         let dh_transport = DHTransport {};
-        let cipher = dh_transport.handshake(&mut stream, false).await?;
-
-        let secured_conn = SecureConn::new(cipher, stream);
-
-        Ok(secured_conn)
-    }
-
-    pub async fn handshake_outbound<T>(&self, mut stream: T) -> Result<SecureConn<T>>
-    where
-        T: IReadWriteClose,
-    {
-        // For now the default security transport is deffi-heinman key exchange
-        self.try_select(&mut stream, MULTISELECT_CONNECT, true)
-            .await?;
-
-        self.try_select(&mut stream, DEFFIE_HEINMAN, true).await?;
-
-        // Inititate DEFFIE-HEINMAN shared-key exchange
-        let dh_transport = DHTransport {};
-        let cipher = dh_transport.handshake(&mut stream, true).await?;
+        let cipher = dh_transport.handshake(&mut stream, is_initiator).await?;
 
         let secured_conn = SecureConn::new(cipher, stream);
 
@@ -107,6 +91,10 @@ impl SecureTransport {
         };
 
         Err(Error::msg("Negotiation failed"))
+    }
+
+    pub fn select_transport(&self) -> Result<()> {
+        Ok(())
     }
 }
 
