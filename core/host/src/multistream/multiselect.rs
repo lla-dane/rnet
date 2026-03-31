@@ -1,34 +1,83 @@
 use anyhow::{Error, Ok, Result};
+use async_trait::async_trait;
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::ISecuredConn;
+use rnet_traits::{conn::ISecuredConn, host::IMultistream};
 use rnet_transport::RawConnection;
 
 #[derive(Debug)]
 pub struct Multiselect {}
 
-impl Multiselect {
-    pub async fn handshake<T>(
+// impl Multiselect {
+//     pub async fn handshake<T>(
+//         &self,
+//         local_peer_info: &PeerInfo,
+//         mut stream: T,
+//     ) -> Result<RawConnection<T>>
+//     where
+//         T: ISecuredConn,
+//     {
+//         // IDENTIFY HANDSHAKE
+
+//         self.try_select(&mut stream, MULTISELECT_CONNECT)
+//             .await
+//             .expect("Multiselect handshake failed");
+
+//         self.try_select(&mut stream, IDENTIFY)
+//             .await
+//             .expect("Identify handshake failed");
+
+//         // Now run the IDENTIFY sequence
+//         let peer_info = identify_seq(local_peer_info, &mut stream, false)
+//             .await
+//             .expect("Identify handshake failed");
+
+//         Ok(RawConnection {
+//             stream,
+//             peer_info,
+//             is_initiator: false,
+//         })
+//     }
+
+//     pub async fn try_select<T>(&self, stream: &mut T, proto: &str) -> Result<()>
+//     where
+//         T: ISecuredConn,
+//     {
+//         let proto_bytes = bincode::serialize(&proto)?;
+//         stream.write(&proto_bytes).await?;
+
+//         let msg_bytes = stream.read().await.unwrap();
+//         let received: String = bincode::deserialize(&msg_bytes)?;
+
+//         if received.as_str() == proto {
+//             return Ok(());
+//         }
+
+//         Err(Error::msg("Neogotiation failed"))
+//     }
+// }
+
+#[async_trait]
+impl<T> IMultistream<T, RawConnection<T>, PeerInfo> for Multiselect
+where
+    T: ISecuredConn + Send + 'static,
+{
+    async fn handshake(
         &self,
         local_peer_info: &PeerInfo,
         mut stream: T,
-    ) -> Result<RawConnection<T>>
-    where
-        T: ISecuredConn,
-    {
-        // IDENTIFY HANDSHAKE
-
-        self.try_select(&mut stream, MULTISELECT_CONNECT)
+        is_initiator: bool,
+    ) -> Result<RawConnection<T>> {
+        self.try_select(&mut stream, MULTISELECT_CONNECT, is_initiator)
             .await
-            .expect("Multiselect handshake failed");
+            .expect("Multistream handshake failed");
 
-        self.try_select(&mut stream, IDENTIFY)
+        self.try_select(&mut stream, IDENTIFY, is_initiator)
             .await
             .expect("Identify handshake failed");
 
-        // Now run the IDENTIFY sequence
-        let peer_info = identify_seq(local_peer_info, &mut stream, false)
+        let peer_info = identify_seq(local_peer_info, &mut stream, true)
             .await
             .expect("Identify handshake failed");
 
@@ -38,21 +87,32 @@ impl Multiselect {
             is_initiator: false,
         })
     }
+    async fn try_select(&self, stream: &mut T, proto: &str, is_initiator: bool) -> Result<()> {
+        match is_initiator {
+            true => {
+                let proto_bytes = bincode::serialize(&proto)?;
+                stream.write(&proto_bytes).await?;
 
-    pub async fn try_select<T>(&self, stream: &mut T, proto: &str) -> Result<()>
-    where
-        T: ISecuredConn,
-    {
-        let proto_bytes = bincode::serialize(&proto)?;
-        stream.write(&proto_bytes).await?;
+                let msg_bytes = stream.read().await.unwrap();
+                let received: String = bincode::deserialize(&msg_bytes)?;
 
-        let msg_bytes = stream.read().await.unwrap();
-        let received: String = bincode::deserialize(&msg_bytes)?;
+                if received.as_str() == proto {
+                    return Ok(());
+                }
+            }
 
-        if received.as_str() == proto {
-            return Ok(());
+            false => {
+                let msg_bytes = stream.read().await.unwrap();
+                let received: String = bincode::deserialize(&msg_bytes)?;
+
+                if received.as_str() == proto {
+                    let proto_bytes = bincode::serialize(&proto)?;
+                    stream.write(&proto_bytes).await.unwrap();
+                    return Ok(());
+                }
+            }
         }
 
-        Err(Error::msg("Neogotiation failed"))
+        Err(Error::msg("Negotiation failed"))
     }
 }

@@ -1,8 +1,8 @@
-use crate::keys::Keys;
 use anyhow::Result;
 
 use base58::ToBase58;
 use rand::thread_rng;
+use rnet_traits::host::IKeys;
 use rsa::pkcs1v15::Signature;
 use rsa::signature::{Keypair, SignerMut, Verifier};
 use rsa::{
@@ -83,7 +83,7 @@ impl RsaKeyPair {
     }
 }
 
-impl Keys for RsaKeyPair {
+impl IKeys<Signature> for RsaKeyPair {
     fn public_key(&self) -> String {
         self.public_key
             .to_pkcs1_pem(Default::default())

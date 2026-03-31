@@ -1,5 +1,5 @@
 [package]
-name = "rnet-host"
+name = "rnet-keys"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,7 +21,6 @@ rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
 rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
-rnet-keys = { path = "../../core/keys" }
 rnet-mplex = { path = "../../muxer/mplex" }
 rnet-transport = { path = "../../transport" }
 rnet-security = { path = "../../security" }
