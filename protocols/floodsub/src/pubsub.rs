@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 use prost::Message as ProstMessage;
-use rnet_mplex::mplex_stream::MplexStream;
+use rnet_muxer::mplex::stream::MplexStream;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
 use rnet_traits::stream::IMuxedStream;

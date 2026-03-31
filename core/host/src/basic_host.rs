@@ -1,8 +1,12 @@
 use async_trait::async_trait;
 use rnet_keys::rsa::RsaKeyPair;
-use rnet_mplex::{
-    headers::build_frame,
-    mplex::{AsyncHandler, MplexConn},
+
+use rnet_muxer::{
+    mplex::{
+        conn::AsyncHandler,
+        headers::{build_frame, MuxedStreamFlag},
+    },
+    transport::MuxerTransport,
 };
 use rnet_security::{conn::SecureConn, SecureTransport};
 use rnet_transport::RawConnection;
@@ -20,7 +24,7 @@ use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::TcpTransport;
 use rnet_traits::{
-    conn::{IMuxedConn, IRawConnection},
+    conn::IMuxedConn,
     host::{IHostMpscTx, IMultistream},
     stream::IReadWriteClose,
     transport::ITransport,
@@ -37,23 +41,39 @@ const INTERNAL: [u8; 16] = *b"internal-payload";
 
 #[derive(Debug)]
 pub struct HostMpscTx {
+    pub key_pair: RsaKeyPair,
     pub host_mpsc_tx: Sender<Vec<u8>>,
 }
 
-// #[derive(Debug)]
 pub struct BasicHost {
     pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
-    pub peer_data: Arc<Mutex<PeerData>>,
+    pub peerstore: Arc<Mutex<PeerData>>,
     pub connections: Arc<Mutex<HashMap<String, Sender<Vec<u8>>>>>,
     pub stream_handlers: HashMap<String, String>,
     pub secure_transport: SecureTransport,
+    pub muxer_transport: MuxerTransport,
     pub multiselect: Multiselect,
     pub handlers: HashMap<String, AsyncHandler>,
     pub host_mpsc_tx: Arc<HostMpscTx>,
     pub host_mpsc_rx: Receiver<Vec<u8>>,
 }
-
+/// new
+/// run
+/// connect
+/// new_stream
+/// get_peer_id
+/// get_addrs
+/// get_pubkey
+/// get_privkey
+/// get_connected_peers
+/// set_stream_handler
+/// remove_stream_handler
+/// disconnect
+/// get_live_peers
+/// is_peer_connected
+/// upgrade_outbound_connection
+/// upgrade_inbound_connection
 impl BasicHost {
     pub async fn new(listen_addr: &mut Multiaddr) -> Result<(Self, Arc<HostMpscTx>)> {
         let listener = TcpTransport::listen(listen_addr).await.unwrap();
@@ -76,12 +96,15 @@ impl BasicHost {
         info!("Host listening on: {}", listen_addr.to_string());
         let (host_mpsc_tx, host_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
-        let host_tx = Arc::new(HostMpscTx { host_mpsc_tx });
+        let host_tx = Arc::new(HostMpscTx {
+            host_mpsc_tx,
+            key_pair: keypair.clone(),
+        });
         Ok((
             BasicHost {
                 transport: listener,
                 key_pair: keypair,
-                peer_data: Arc::new(Mutex::new(PeerData {
+                peerstore: Arc::new(Mutex::new(PeerData {
                     peer_info: PeerInfo {
                         peer_id,
                         listen_addr: listen_addr.clone().to_string(),
@@ -91,6 +114,7 @@ impl BasicHost {
                 connections: Arc::new(Mutex::new(HashMap::new())),
                 stream_handlers: HashMap::new(),
                 secure_transport: SecureTransport::new(),
+                muxer_transport: MuxerTransport::new(),
                 multiselect: Multiselect {},
                 handlers: HashMap::new(),
                 host_mpsc_tx: host_tx.clone(),
@@ -182,11 +206,8 @@ impl BasicHost {
             .clone();
 
         // INITIALIZE THE NEW-STREAM HEADER
-        let mut new_stream_frame = build_frame(
-            0,
-            rnet_mplex::headers::MuxedStreamFlag::NewStream,
-            protocols[0].as_bytes(),
-        );
+        let mut new_stream_frame =
+            build_frame(0, MuxedStreamFlag::NewStream, protocols[0].as_bytes());
         new_stream_frame.splice(0..0, INTERNAL);
         muxed_conn_mpsc_tx.send(new_stream_frame).await.unwrap();
     }
@@ -205,7 +226,7 @@ impl BasicHost {
         T: IReadWriteClose + Send + Sync + 'static,
     {
         let local_peer_info = {
-            let data = self.peer_data.lock().await;
+            let data = self.peerstore.lock().await;
             data.peer_info.clone()
         };
 
@@ -230,29 +251,30 @@ impl BasicHost {
 
         // ------TODO:-RUN-STREAM-MUXER-UPDATE-----
 
-        let remote_peer_info = raw_conn.peer_info();
-        info!("New peer connected: {}", remote_peer_info.peer_id);
+        let remote_peer = raw_conn.peer_info();
+        info!("New peer connected: {}", remote_peer.peer_id);
 
-        // -------MPEX-UPDATE-----
-        let (muxed_conn_mpsc_tx, muxed_conn_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let muxed_conn = MplexConn::new(
-            raw_conn,
-            is_initiator,
-            remote_peer_info.clone(),
-            self.handlers.clone(),
-            muxed_conn_mpsc_tx.clone(),
-            muxed_conn_mpsc_rx,
-        );
+        // -------MUXER-UPDATE-----
+        let (muxed_conn, muxed_conn_mpsc_tx) = self
+            .muxer_transport
+            .mux_conn(
+                raw_conn,
+                is_initiator,
+                remote_peer.clone(),
+                self.handlers.clone(),
+            )
+            .await
+            .unwrap();
 
         // ----UPDATE-PEER-STORE----
         {
-            let mut peer_data = self.peer_data.lock().await;
-            peer_data
+            let mut peerstore = self.peerstore.lock().await;
+            peerstore
                 .peer_store
-                .insert(remote_peer_info.peer_id.clone(), remote_peer_info.clone());
+                .insert(remote_peer.peer_id.clone(), remote_peer.clone());
 
             let mut connections = self.connections.lock().await;
-            connections.insert(remote_peer_info.peer_id.clone(), muxed_conn_mpsc_tx.clone());
+            connections.insert(remote_peer.peer_id.clone(), muxed_conn_mpsc_tx.clone());
         }
 
         //----SPAWN-MUXED-CONN-HANDLER----
@@ -260,7 +282,7 @@ impl BasicHost {
 
         tokio::spawn(async move {
             muxed_conn
-                .conn_handler(remote_peer_info.peer_id.as_str(), &host_mpsc_tx)
+                .conn_handler(remote_peer.peer_id.as_str(), &host_mpsc_tx)
                 .await
                 .unwrap();
         });
@@ -269,8 +291,8 @@ impl BasicHost {
     }
 
     async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
-        let mut peer_data = self.peer_data.lock().await;
-        peer_data.peer_store.remove(peer_id);
+        let mut peerstore = self.peerstore.lock().await;
+        peerstore.peer_store.remove(peer_id);
 
         let mut connections = self.connections.lock().await;
         connections.remove(peer_id);

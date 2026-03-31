@@ -19,13 +19,12 @@ pub trait ISecuredConn {
 }
 
 #[async_trait]
-pub trait IRawConnection<T> {
+pub trait IRawConnection {
     async fn read(&mut self) -> Result<Vec<u8>>;
 
     #[allow(clippy::ptr_arg)]
     async fn write(&mut self, msg: &Vec<u8>) -> Result<()>;
     async fn close(&mut self) -> Result<()>;
-    fn peer_info(&self) -> T;
 }
 
 #[async_trait]

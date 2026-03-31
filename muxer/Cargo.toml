@@ -1,5 +1,5 @@
 [package]
-name = "rnet-mplex"
+name = "rnet-muxer"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,13 +14,13 @@ serde = { workspace = true }
 bincode = { workspace = true }
 unsigned-varint = { workspace = true }
 
-rnet-tcp = { path = "../../transport/tcp" }
-rnet-traits = { path = "../../core/traits" }
-rnet-multiaddr = { path = "../../core/multiaddr" }
-rnet-core = { path = "../../core" }
-rnet-identify = { path = "../../protocols/identify" }
-rnet-peer = { path = "../../core/peer" }
-rnet-transport = { path = "../../transport" }
+rnet-tcp = { path = "../transport/tcp" }
+rnet-traits = { path = "../core/traits" }
+rnet-multiaddr = { path = "../core/multiaddr" }
+rnet-core = { path = "../core" }
+rnet-identify = { path = "../protocols/identify" }
+rnet-peer = { path = "../core/peer" }
+rnet-transport = { path = "../transport" }
 rand = "0.8"
 hex = "0.4.3"
 rsa-der = "0.3.0"

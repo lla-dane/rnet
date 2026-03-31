@@ -19,10 +19,10 @@ bincode = { workspace = true }
 hex = {workspace = true}
 
 rnet-tcp = { path = "../../transport/tcp" }
+rnet-muxer = { path = "../../muxer" }
 rnet-core = { path = "../../core" }
 rnet-traits = { path = "../../core/traits" }
 rnet-host = { path = "../../core/host" }
 rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-peer = { path = "../../core/peer" }
-rnet-mplex = { path = "../../muxer/mplex" }
 

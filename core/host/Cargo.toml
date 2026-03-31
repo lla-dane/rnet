@@ -12,7 +12,7 @@ rsa = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
-x25519-dalek = { workspace = true}
+x25519-dalek = { workspace = true }
 chacha20poly1305 = { workspace = true }
 
 rnet-tcp = { path = "../../transport/tcp" }
@@ -22,9 +22,9 @@ rnet-core = { path = "../../core" }
 rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
 rnet-keys = { path = "../../core/keys" }
-rnet-mplex = { path = "../../muxer/mplex" }
 rnet-transport = { path = "../../transport" }
 rnet-security = { path = "../../security" }
+rnet-muxer = { path = "../../muxer" }
 
 rand = "0.8"
 hex = "0.4.3"
