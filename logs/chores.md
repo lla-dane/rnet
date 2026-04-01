@@ -1,4 +1,5 @@
 - [ ]
+- [ ] generalized muxed-conn for any type of muxer
 - [ ] prioritize the sec/muxer-opts priority
 - [x] remove the generic argument of IRawConnection
 - [ ] update file-names ad get_correct code placement
