@@ -24,9 +24,8 @@ use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
 use rnet_tcp::TcpTransport;
 use rnet_traits::{
-    conn::IMuxedConn,
-    host::{IHostMpscTx, IMultistream},
-    stream::IReadWriteClose,
+    core::{IHostMpscTx, IMultistream, IReadWriteClose},
+    muxer::IMuxedConn,
     transport::ITransport,
 };
 use std::result::Result::Ok;

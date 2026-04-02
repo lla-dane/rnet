@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{conn::ISecuredConn, host::IMultistream};
+use rnet_traits::{core::IMultistream, security::ISecuredConn};
 use rnet_transport::RawConnection;
 
 #[derive(Debug)]

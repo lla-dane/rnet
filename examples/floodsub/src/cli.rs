@@ -5,7 +5,7 @@ use rnet_floodsub::{
 };
 use rnet_host::basic_host::HostMpscTx;
 use rnet_multiaddr::Multiaddr;
-use rnet_traits::host::IHostMpscTx;
+use rnet_traits::core::IHostMpscTx;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
