@@ -9,7 +9,7 @@ use rnet_muxer::{
     transport::MuxerTransport,
 };
 use rnet_security::{conn::SecureConn, transport::SecureTransport};
-use rnet_transport::RawConnection;
+use rnet_transport::{raw_conn::RawConnection, tcp::transport::TcpTransport};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -22,7 +22,6 @@ use tokio::sync::{
 use anyhow::{Error, Result};
 use rnet_multiaddr::{Multiaddr, Protocol};
 use rnet_peer::{peer_info::PeerInfo, PeerData};
-use rnet_tcp::TcpTransport;
 use rnet_traits::{
     core::{IHostMpscTx, IMultistream, IReadWriteClose},
     muxer::IMuxedConn,

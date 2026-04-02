@@ -4,7 +4,7 @@ use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
 use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_traits::{core::IMultistream, security::ISecuredConn};
-use rnet_transport::RawConnection;
+use rnet_transport::raw_conn::RawConnection;
 
 #[derive(Debug)]
 pub struct Multiselect {}
