@@ -11,8 +11,6 @@ members = [
     "protocols/floodsub",
     "proto",
     "transport",
-    "transport/tcp",
-    "transport/udp",
     "muxer",
     "examples/tcp",
     "examples/ping",

@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = {workspace = true}
-anyhow = {workspace = true}
-async-trait = {workspace = true}
-prost = {workspace = true}
-rnet-tcp = { path = "../transport/tcp" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+prost = { workspace = true }
 rnet-peer = { path = "../core/peer" }
 rnet-traits = { path = "../core/traits" }
 rnet-proto = { path = "../proto" }
+rnet-multiaddr = { path = "../core/multiaddr" }

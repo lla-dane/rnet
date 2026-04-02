@@ -1,17 +1,11 @@
 use anyhow::{bail, Ok, Result};
 use async_trait::async_trait;
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::{core::IReadWriteClose, transport::ITransport};
+use rnet_traits::core::IReadWriteClose;
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::TcpStream,
 };
-
-#[derive(Debug)]
-pub struct TcpTransport {
-    listener: TcpListener,
-}
 
 #[derive(Debug)]
 pub struct TcpConn {
@@ -70,38 +64,5 @@ impl IReadWriteClose for TcpConn {
 impl TcpConn {
     pub fn get_ip(&self) -> Result<SocketAddr> {
         Ok(self.stream.local_addr().unwrap())
-    }
-}
-
-impl TcpTransport {
-    pub fn get_local_addr(&self) -> Result<String> {
-        let addr = self.listener.local_addr().unwrap().to_string();
-        Ok(addr)
-    }
-}
-
-#[async_trait]
-impl ITransport<TcpConn> for TcpTransport {
-    async fn listen(addr: &Multiaddr) -> Result<Self> {
-        let local_ip = addr.value_for_protocol("ip4").unwrap();
-        let port = addr.value_for_protocol("tcp").unwrap();
-        let addr = format!("{}:{}", local_ip, port);
-
-        let listener = TcpListener::bind(addr).await?;
-        Ok(Self { listener })
-    }
-
-    async fn accept(&self) -> Result<(TcpConn, SocketAddr)> {
-        let (stream, addr) = self.listener.accept().await?;
-        Ok((TcpConn { stream }, addr))
-    }
-
-    async fn dial(addr: &Multiaddr) -> Result<TcpConn> {
-        let local_ip = addr.value_for_protocol("ip4").unwrap();
-        let port = addr.value_for_protocol("tcp").unwrap();
-        let addr = format!("{}:{}", local_ip, port);
-
-        let stream = TcpStream::connect(addr).await?;
-        Ok(TcpConn { stream })
     }
 }
