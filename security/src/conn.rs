@@ -1,9 +1,7 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use chacha20poly1305::{
-    aead::{Aead, OsRng},
-    AeadCore, ChaCha20Poly1305, Nonce,
-};
+
+use chacha20poly1305::ChaCha20Poly1305;
 use rnet_traits::{conn::ISecuredConn, stream::IReadWriteClose};
 
 pub const NONCE_LEN: usize = 12;
@@ -14,6 +12,11 @@ where
 {
     cipher: ChaCha20Poly1305,
     stream: T,
+}
+
+pub trait ISecureCipher {
+    fn idecrypt(&self, nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>>;
+    fn iencrypt(&self, msg: &[u8]) -> Result<(Vec<u8>, Vec<u8>)>;
 }
 
 impl<T> SecureConn<T>
@@ -41,9 +44,8 @@ where
         }
 
         let (nonce_bytes, ciphertext) = bytes.split_at(NONCE_LEN);
-        let nonce = Nonce::from_slice(nonce_bytes);
 
-        let plaintext = self.cipher.decrypt(nonce, ciphertext).unwrap();
+        let plaintext = self.cipher.idecrypt(nonce_bytes, ciphertext).unwrap();
         Ok(plaintext)
     }
 
@@ -53,8 +55,7 @@ where
         // Insert the nonce - 12 bytes in front
         // send off the paylaod
 
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let ciphertext = self.cipher.encrypt(&nonce, msg.as_slice()).unwrap();
+        let (ciphertext, nonce) = self.cipher.iencrypt(msg).unwrap();
 
         let mut payload = Vec::with_capacity(nonce.len() + ciphertext.len());
 

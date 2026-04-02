@@ -8,7 +8,7 @@ use rnet_muxer::{
     },
     transport::MuxerTransport,
 };
-use rnet_security::{conn::SecureConn, SecureTransport};
+use rnet_security::{conn::SecureConn, transport::SecureTransport};
 use rnet_transport::RawConnection;
 use std::{
     collections::{HashMap, VecDeque},
@@ -196,7 +196,6 @@ impl BasicHost {
             info!("Making a connection first: {}", peer_id);
             self.connect(maddr).await.unwrap();
         }
-
         let mut connections = self.connections.lock().await;
 
         let muxed_conn_mpsc_tx = connections
@@ -255,7 +254,7 @@ impl BasicHost {
         info!("New peer connected: {}", remote_peer.peer_id);
 
         // -------MUXER-UPDATE-----
-        let (muxed_conn, muxed_conn_mpsc_tx) = self
+        let (mut muxed_conn, muxed_conn_mpsc_tx) = self
             .muxer_transport
             .mux_conn(
                 raw_conn,
@@ -282,7 +281,7 @@ impl BasicHost {
 
         tokio::spawn(async move {
             muxed_conn
-                .conn_handler(remote_peer.peer_id.as_str(), &host_mpsc_tx)
+                .conn_handler(remote_peer.peer_id.as_str(), host_mpsc_tx)
                 .await
                 .unwrap();
         });

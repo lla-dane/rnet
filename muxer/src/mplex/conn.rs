@@ -81,47 +81,50 @@ where
                 // Create a new stream
                 let (muxed_stream_mpsc_tx, muxed_stream_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
-                if !self.is_initiator {
-                    let stream = MplexStream::new(
-                        self.mpsc_tx.clone(),
-                        muxed_stream_mpsc_rx,
-                        stream_id,
-                        self.is_initiator,
-                        self.remote_peer_info.clone(),
-                        self.handlers.clone(),
-                    );
-                    self.streams.insert(stream_id, muxed_stream_mpsc_tx.clone());
+                match self.is_initiator {
+                    false => {
+                        let stream = MplexStream::new(
+                            self.mpsc_tx.clone(),
+                            muxed_stream_mpsc_rx,
+                            stream_id,
+                            self.is_initiator,
+                            self.remote_peer_info.clone(),
+                            self.handlers.clone(),
+                        );
+                        self.streams.insert(stream_id, muxed_stream_mpsc_tx.clone());
 
-                    // SERVER HANDSHAKE PROCEDURE
-                    tokio::spawn(async move {
-                        stream.server_handshake().await.unwrap();
-                    });
-                } else {
-                    self._stream_counter += 1;
-                    let stream = MplexStream::new(
-                        self.mpsc_tx.clone(),
-                        muxed_stream_mpsc_rx,
-                        self._stream_counter,
-                        self.is_initiator,
-                        self.remote_peer_info.clone(),
-                        self.handlers.clone(),
-                    );
-                    self.streams
-                        .insert(self._stream_counter, muxed_stream_mpsc_tx.clone());
+                        // SERVER HANDSHAKE PROCEDURE
+                        tokio::spawn(async move {
+                            stream.server_handshake().await.unwrap();
+                        });
+                    }
+                    true => {
+                        self._stream_counter += 1;
+                        let stream = MplexStream::new(
+                            self.mpsc_tx.clone(),
+                            muxed_stream_mpsc_rx,
+                            self._stream_counter,
+                            self.is_initiator,
+                            self.remote_peer_info.clone(),
+                            self.handlers.clone(),
+                        );
+                        self.streams
+                            .insert(self._stream_counter, muxed_stream_mpsc_tx.clone());
 
-                    // INITIATOR-FRAME -> SERVER
-                    let initiator_frame = build_frame(
-                        self._stream_counter,
-                        MuxedStreamFlag::NewStream,
-                        b"".as_ref(),
-                    );
-                    self.write(initiator_frame).await.unwrap();
+                        // INITIATOR-FRAME -> SERVER
+                        let initiator_frame = build_frame(
+                            self._stream_counter,
+                            MuxedStreamFlag::NewStream,
+                            b"".as_ref(),
+                        );
+                        self.send(initiator_frame).await.unwrap();
 
-                    // CLIENT HANDSHAKE PROCEDURE
-                    tokio::spawn(async move {
-                        stream.client_handshake(payload_extracted).await.unwrap();
-                    });
-                }
+                        // CLIENT HANDSHAKE PROCEDURE
+                        tokio::spawn(async move {
+                            stream.client_handshake(payload_extracted).await.unwrap();
+                        });
+                    }
+                };
             }
 
             MuxedStreamFlag::MessageResponse | MuxedStreamFlag::MessageRequest => {
@@ -159,10 +162,11 @@ where
         Ok(())
     }
 
-    async fn conn_handler<W>(mut self, peer_id: &str, host_mpsc_tx: &Arc<W>) -> Result<()>
-    where
-        W: IHostMpscTx + Send + Sync,
-    {
+    async fn conn_handler(
+        &mut self,
+        peer_id: &str,
+        host_mpsc_tx: Arc<dyn IHostMpscTx + Send + Sync>,
+    ) -> Result<()> {
         let mut write_queue = VecDeque::<Vec<u8>>::new();
 
         loop {
@@ -186,7 +190,7 @@ where
 
                 _ = async {}, if !write_queue.is_empty() => {
                     let data = write_queue.pop_front().unwrap();
-                    if self.raw_conn.write(&data).await.is_err() {
+                    if self.write(&data).await.is_err() {
                         break;
                     }
                 }
@@ -198,12 +202,16 @@ where
         Ok(())
     }
 
-    async fn write(&self, msg: Vec<u8>) -> Result<()> {
+    async fn send(&self, msg: Vec<u8>) -> Result<()> {
         if let Err(e) = self.mpsc_tx.send(msg).await {
             return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
         }
 
         Ok(())
+    }
+
+    async fn write(&mut self, msg: &Vec<u8>) -> Result<()> {
+        self.raw_conn.write(msg).await
     }
 }
 
