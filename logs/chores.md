@@ -1,4 +1,7 @@
 - [ ]
+- [ ] if you want, `conn_handler` to be in `MuxedConn` => `MuxedConn[raw_conn] + mplex_channels`
+- [ ] write in findings, `MplexConn<T>` and `MuxedConn<T>`
+- [ ] rewrite `server/client_handshake` in `IMuxedStream`
 - [ ] generalized muxed-conn for any type of muxer
 - [ ] prioritize the sec/muxer-opts priority
 - [x] remove the generic argument of IRawConnection

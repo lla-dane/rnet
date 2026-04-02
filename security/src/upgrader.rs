@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rnet_traits::stream::IReadWriteClose;
 
-use crate::{conn::SecureConn, SecureTransport};
+use crate::{conn::SecureConn, transport::SecureTransport};
 
 pub struct SecurityUpgrader {
     tranport: SecureTransport,

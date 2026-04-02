@@ -1,8 +1,9 @@
+use crate::conn::ISecureCipher;
 use anyhow::Result;
+use chacha20poly1305::{aead::Aead, AeadCore, Nonce};
 use chacha20poly1305::{aead::OsRng, ChaCha20Poly1305, Key, KeyInit};
 use rnet_traits::stream::IReadWriteClose;
 use x25519_dalek::{EphemeralSecret, PublicKey};
-
 pub struct DHTransport {}
 
 impl DHTransport {
@@ -49,5 +50,75 @@ impl DHTransport {
         let cipher_key = ChaCha20Poly1305::new(pre_cipher);
 
         Ok(cipher_key)
+    }
+}
+
+impl ISecureCipher for ChaCha20Poly1305 {
+    fn idecrypt(&self, nonce_bytes: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+        let nonce = Nonce::from_slice(nonce_bytes);
+
+        let plaintext = self.decrypt(nonce, ciphertext).unwrap();
+        Ok(plaintext)
+    }
+
+    fn iencrypt(&self, plaintext: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        let ciphertext = self.encrypt(&nonce, plaintext).unwrap();
+
+        Ok((ciphertext, nonce.as_slice().to_vec()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chacha20poly1305::{
+        aead::{Aead, OsRng},
+        AeadCore, ChaCha20Poly1305, KeyInit, Nonce,
+    };
+    use x25519_dalek::PublicKey;
+
+    #[test]
+    fn test_diffie_heinman() {
+        let csprng = OsRng {};
+        let alice_secret = x25519_dalek::EphemeralSecret::random_from_rng(csprng);
+        let bob_secret = x25519_dalek::EphemeralSecret::random_from_rng(csprng);
+
+        let alice_public = PublicKey::from(&alice_secret);
+        let bob_public = PublicKey::from(&bob_secret);
+
+        let hex = hex::encode(alice_public.as_bytes());
+        println!("{}", hex);
+
+        let alice_public =
+            PublicKey::from(<[u8; 32]>::try_from(alice_public.to_bytes().to_vec()).unwrap());
+
+        let alice_shared_secret = alice_secret.diffie_hellman(&bob_public);
+        let bob_shared_secret = bob_secret.diffie_hellman(&alice_public);
+
+        let alice_key = chacha20poly1305::Key::from_slice(alice_shared_secret.as_bytes());
+        let bob_key = chacha20poly1305::Key::from_slice(bob_shared_secret.as_bytes());
+
+        let alice_cipher = ChaCha20Poly1305::new(alice_key);
+        let bob_cipher = ChaCha20Poly1305::new(bob_key);
+
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        let nonce_bytes: Vec<u8> = nonce.to_vec();
+        println!("{:?}", nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        let ciphertext = alice_cipher
+            .encrypt(nonce, b"top secret orgy".as_ref())
+            .unwrap();
+        let plaintext = bob_cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
+
+        println!("{:?}", ciphertext);
+        println!("{:?}", plaintext);
+
+        let ciphertext = bob_cipher
+            .encrypt(nonce, b"top secret orgy haha".as_ref())
+            .unwrap();
+        let plaintext = alice_cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
+
+        assert_eq!(&plaintext, b"top secret orgy haha");
     }
 }
