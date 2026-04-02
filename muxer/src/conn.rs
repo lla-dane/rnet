@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{Error, Result};
 use rnet_peer::peer_info::PeerInfo;
 use rnet_traits::{
-    conn::{IMuxedConn, IRawConnection},
-    host::IHostMpscTx,
+    core::{IHostMpscTx, IRawConnection},
+    muxer::IMuxedConn,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 

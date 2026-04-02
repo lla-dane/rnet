@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::{IMuxedConn, IRawConnection};
+use rnet_traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::mpsc::Sender;
 
 use crate::{mplex::conn::AsyncHandler, transport::MuxerTransport};

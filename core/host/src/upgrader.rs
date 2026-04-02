@@ -5,8 +5,8 @@ use rnet_muxer::{mplex::conn::AsyncHandler, upgrader::MuxerUpgrader};
 use rnet_peer::peer_info::PeerInfo;
 use rnet_security::{conn::SecureConn, upgrader::SecurityUpgrader};
 use rnet_traits::{
-    conn::{IMuxedConn, IRawConnection},
-    stream::IReadWriteClose,
+    core::{IRawConnection, IReadWriteClose},
+    muxer::IMuxedConn,
 };
 use tokio::sync::mpsc::Sender;
 

@@ -1,7 +1,7 @@
 use anyhow::{bail, Ok, Result};
 use async_trait::async_trait;
 use rnet_multiaddr::Multiaddr;
-use rnet_traits::{stream::IReadWriteClose, transport::ITransport};
+use rnet_traits::{core::IReadWriteClose, transport::ITransport};
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

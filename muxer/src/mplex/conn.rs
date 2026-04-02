@@ -1,9 +1,11 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::{IMuxedConn, IRawConnection};
-use rnet_traits::host::IHostMpscTx;
-use rnet_traits::stream::IMuxedStream;
+use rnet_traits::muxer::IMuxedStream;
+use rnet_traits::{
+    core::{IHostMpscTx, IRawConnection},
+    muxer::IMuxedConn,
+};
 
 use std::collections::VecDeque;
 use std::future::Future;

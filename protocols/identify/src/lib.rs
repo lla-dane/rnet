@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::ISecuredConn;
+use rnet_traits::security::ISecuredConn;
 
 pub async fn identify_seq<T>(
     local_peer_info: &PeerInfo,

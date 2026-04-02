@@ -2,7 +2,9 @@ use anyhow::{Error, Result};
 use async_trait::async_trait;
 
 use chacha20poly1305::ChaCha20Poly1305;
-use rnet_traits::{conn::ISecuredConn, stream::IReadWriteClose};
+use rnet_traits::{core::IReadWriteClose, security::ISecuredConn};
+
+use crate::ISecureCipher;
 
 pub const NONCE_LEN: usize = 12;
 
@@ -12,11 +14,6 @@ where
 {
     cipher: ChaCha20Poly1305,
     stream: T,
-}
-
-pub trait ISecureCipher {
-    fn idecrypt(&self, nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>>;
-    fn iencrypt(&self, msg: &[u8]) -> Result<(Vec<u8>, Vec<u8>)>;
 }
 
 impl<T> SecureConn<T>

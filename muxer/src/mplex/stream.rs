@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::stream::IMuxedStream;
+use rnet_traits::muxer::IMuxedStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::mplex::{

@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
 use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::conn::{IRawConnection, ISecuredConn};
+use rnet_traits::{core::IRawConnection, security::ISecuredConn};
 
 #[derive(Debug)]
 pub struct RawConnection<T>

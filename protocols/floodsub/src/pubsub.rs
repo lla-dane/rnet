@@ -8,7 +8,7 @@ use prost::Message as ProstMessage;
 use rnet_muxer::mplex::stream::MplexStream;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
-use rnet_traits::stream::IMuxedStream;
+use rnet_traits::muxer::IMuxedStream;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
     mpsc::{self, Sender},
