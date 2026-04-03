@@ -2,14 +2,14 @@
 - [ ] make all the notifications to be event-driven
 - [ ] you dont fucking get ownership of `IMuxedStream`, you only get Events5
 - [ ] if you want, `conn_handler` to be in `MuxedConn` => `MuxedConn[raw_conn] + mplex_channels`
-- [ ] write in findings, `MplexConn<T>` and `MuxedConn<T>`
-- [ ] rewrite `server/client_handshake` in `IMuxedStream`
-- [ ] generalized muxed-conn for any type of muxer
+- [x] write in findings, `MplexConn<T>` and `MuxedConn<T>`
+- [x] rewrite `server/client_handshake` in `IMuxedStream`
+- [x] generalized muxed-conn for any type of muxer
 - [ ] prioritize the sec/muxer-opts priority
 - [x] remove the generic argument of IRawConnection
 - [ ] update file-names ad get_correct code placement
 - [ ] specify the protocols while creating the host instance, rather than `host.set_stream_handler()`
-- [ ] Transport stuct -> generic
+- [x] Transport stuct -> generic
 - [ ] separate the network components into a netowrk-component
 - [x] think if somethign better for try_select could be done
 - [x] separate the module for keys

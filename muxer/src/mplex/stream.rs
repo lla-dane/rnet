@@ -65,47 +65,57 @@ impl IMuxedStream for MplexStream {
         }
     }
 
-    async fn server_handshake(mut self) -> Result<()> {
-        let payload = self.read().await.unwrap();
-        let protocol = String::from_utf8(payload.clone()).unwrap();
+    async fn negotiate(mut self, proto: Option<Vec<u8>>) -> Result<()> {
+        match self.is_initiator {
+            true => {
+                let protocol = proto.unwrap();
+                let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeReq, &protocol);
+                self.muxed_conn_mpsc_tx.send(frame).await?;
 
-        let protocols: Vec<String> = self.handlers.keys().cloned().collect();
+                let res = self.read().await.unwrap();
+                if protocol != res {
+                    return Err(Error::msg("Client: Protocol negotiation failed"));
+                }
 
-        if !protocols.contains(&protocol) {
-            return Err(Error::msg("Server: Protocol negotiation failed"));
+                let protocol = String::from_utf8(protocol).unwrap();
+                let handler = self
+                    .handlers
+                    .get(&protocol)
+                    .cloned()
+                    .ok_or_else(|| Error::msg("Protocol not found"))?;
+
+                handler(self).await.unwrap();
+            }
+            false => {
+                let payload = self.read().await.unwrap();
+                let protocol = String::from_utf8(payload.clone()).unwrap();
+
+                let protocols: Vec<String> = self.handlers.keys().cloned().collect();
+
+                if !protocols.contains(&protocol) {
+                    return Err(Error::msg("Server: protocol negotiation failed"));
+                }
+
+                let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeRes, &payload);
+                self.muxed_conn_mpsc_tx.send(frame).await?;
+
+                let handler = self
+                    .handlers
+                    .get(&protocol)
+                    .cloned()
+                    .ok_or_else(|| Error::msg("Protocol not found"))?;
+                handler(self).await.unwrap();
+            }
         }
 
-        let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeRes, &payload);
-        self.muxed_conn_mpsc_tx.send(frame).await?;
-
-        let handler = self
-            .handlers
-            .get(&protocol)
-            .cloned()
-            .ok_or_else(|| Error::msg("Protocol not found"))?;
-
-        handler(self).await.unwrap();
         Ok(())
     }
 
-    async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()> {
-        let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeReq, &protocol);
-        self.muxed_conn_mpsc_tx.send(frame).await?;
+    fn is_initiator(&self) -> bool {
+        self.is_initiator
+    }
 
-        let res = self.read().await.unwrap();
-        if protocol != res {
-            return Err(Error::msg("Client: Protocol negotiation failed"));
-        }
-
-        let protocol = String::from_utf8(protocol).unwrap();
-        let handler = self
-            .handlers
-            .get(&protocol)
-            .cloned()
-            .ok_or_else(|| Error::msg("Protocol not found"))?;
-
-        handler(self).await.unwrap();
-
-        Ok(())
+    fn get_peer_id(&self) -> String {
+        self.remote_peer_info.peer_id.clone()
     }
 }

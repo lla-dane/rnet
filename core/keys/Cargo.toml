@@ -18,7 +18,6 @@ chacha20poly1305 = { workspace = true }
 rnet-traits = { path = "../../core/traits" }
 rnet-multiaddr = { path = "../../core/multiaddr" }
 rnet-core = { path = "../../core" }
-rnet-identify = { path = "../../protocols/identify" }
 rnet-peer = { path = "../../core/peer" }
 rnet-transport = { path = "../../transport" }
 rnet-security = { path = "../../security" }
