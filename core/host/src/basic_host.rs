@@ -70,8 +70,6 @@ pub struct BasicHost {
 /// disconnect
 /// get_live_peers
 /// is_peer_connected
-/// upgrade_outbound_connection
-/// upgrade_inbound_connection
 impl BasicHost {
     pub async fn new(listen_addr: &mut Multiaddr) -> Result<(Self, Arc<HostMpscTx>)> {
         let listener = TcpTransport::listen(listen_addr).await.unwrap();

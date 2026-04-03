@@ -1,4 +1,6 @@
 - [ ]
+- [ ] make all the notifications to be event-driven
+- [ ] you dont fucking get ownership of `IMuxedStream`, you only get Events5
 - [ ] if you want, `conn_handler` to be in `MuxedConn` => `MuxedConn[raw_conn] + mplex_channels`
 - [ ] write in findings, `MplexConn<T>` and `MuxedConn<T>`
 - [ ] rewrite `server/client_handshake` in `IMuxedStream`
