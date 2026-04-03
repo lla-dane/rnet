@@ -23,8 +23,7 @@ pub trait IMuxedStream {
     #[allow(clippy::ptr_arg)]
     async fn write(&self, msg: &Vec<u8>) -> Result<()>;
     async fn read(&mut self) -> Result<Vec<u8>>;
-
-    // Merge these 2 handshake functions in the future
-    async fn server_handshake(mut self) -> Result<()>;
-    async fn client_handshake(mut self, protocol: Vec<u8>) -> Result<()>;
+    async fn negotiate(mut self, protocol: Option<Vec<u8>>) -> Result<()>;
+    fn is_initiator(&self) -> bool;
+    fn get_peer_id(&self) -> String;
 }

@@ -97,7 +97,7 @@ where
 
                         // SERVER HANDSHAKE PROCEDURE
                         tokio::spawn(async move {
-                            stream.server_handshake().await.unwrap();
+                            stream.negotiate(None).await.unwrap();
                         });
                     }
                     true => {
@@ -123,7 +123,7 @@ where
 
                         // CLIENT HANDSHAKE PROCEDURE
                         tokio::spawn(async move {
-                            stream.client_handshake(payload_extracted).await.unwrap();
+                            stream.negotiate(Some(payload_extracted)).await.unwrap();
                         });
                     }
                 };

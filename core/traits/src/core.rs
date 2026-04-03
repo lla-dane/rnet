@@ -37,6 +37,8 @@ pub trait IHostMpscTx {
 pub trait IMultistream<T, W, X> {
     async fn handshake(&self, local_peer_info: &X, stream: T, is_intitiator: bool) -> Result<W>;
     async fn try_select(&self, stream: &mut T, proto: &str, is_intitiator: bool) -> Result<()>;
+    async fn identify(&self, local_peer_info: &X, stream: &mut T, is_intitiator: bool)
+        -> Result<X>;
 }
 
 pub trait IKeys<T> {

@@ -1,7 +1,6 @@
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
 use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
-use rnet_identify::identify_seq;
 use rnet_peer::peer_info::PeerInfo;
 use rnet_traits::{core::IMultistream, security::ISecuredConn};
 use rnet_transport::raw_conn::RawConnection;
@@ -28,7 +27,8 @@ where
             .await
             .expect("Identify handshake failed");
 
-        let remote = identify_seq(local_peer_info, &mut stream, is_initiator)
+        let remote = self
+            .identify(local_peer_info, &mut stream, is_initiator)
             .await
             .expect("Identify handshake failed");
 
@@ -65,5 +65,34 @@ where
         }
 
         Err(Error::msg("Negotiation failed"))
+    }
+
+    async fn identify(
+        &self,
+        local_peer_info: &PeerInfo,
+        stream: &mut T,
+        is_initiator: bool,
+    ) -> Result<PeerInfo>
+    where
+        T: ISecuredConn,
+    {
+        let peer_info_bytes = bincode::serialize(local_peer_info)?;
+        let remote_peer_info: PeerInfo;
+
+        match is_initiator {
+            false => {
+                stream.write(&peer_info_bytes).await?;
+
+                let remote_peer_info_bytes = stream.read().await.unwrap();
+                remote_peer_info = bincode::deserialize(&remote_peer_info_bytes)?;
+            }
+            true => {
+                let remote_peer_info_bytes = stream.read().await.unwrap();
+                remote_peer_info = bincode::deserialize(&remote_peer_info_bytes)?;
+
+                stream.write(&peer_info_bytes).await?;
+            }
+        }
+        Ok(remote_peer_info)
     }
 }

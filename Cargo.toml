@@ -7,7 +7,7 @@ members = [
     "core/multiaddr",
     "core/peer",
     "protocols",
-    "protocols/identify",
+    "protocols/ping",
     "protocols/floodsub",
     "proto",
     "transport",

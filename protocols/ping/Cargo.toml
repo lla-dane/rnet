@@ -1,5 +1,5 @@
 [package]
-name = "rnet-host"
+name = "rnet-ping"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,7 @@ edition = "2021"
 tokio = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+
 tracing = { workspace = true }
 rsa = { workspace = true }
 sha2 = { workspace = true }
