@@ -23,7 +23,8 @@ pub trait IMuxedStream {
     #[allow(clippy::ptr_arg)]
     async fn write(&self, msg: &Vec<u8>) -> Result<()>;
     async fn read(&mut self) -> Result<Vec<u8>>;
-    async fn negotiate(mut self, protocol: Option<Vec<u8>>) -> Result<()>;
+    async fn negotiate(&mut self, protocol: Option<Vec<u8>>) -> Option<String>;
+    async fn handle_conn(mut self, protocol: Option<Vec<u8>>) -> Result<()>;
     fn is_initiator(&self) -> bool;
     fn get_peer_id(&self) -> String;
 }

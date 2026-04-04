@@ -1,9 +1,9 @@
 use anyhow::Result;
-use rnet_host::basic_host::BasicHost;
-use rnet_multiaddr::Multiaddr;
-use rnet_muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
-use rnet_traits::core::IHostMpscTx;
-use rnet_traits::muxer::IMuxedStream;
+use host::basic_host::BasicHost;
+use multiaddr::Multiaddr;
+use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
+use traits::core::IHostMpscTx;
+use traits::muxer::IMuxedStream;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
+    let (mut host, host_tx, global_rx) = BasicHost::new(&mut listen_addr, vec![]).await.unwrap();
 
     let mut mode = "server".to_string();
     let mut destination = "";

@@ -1,11 +1,11 @@
 use anyhow::Result;
-use rnet_floodsub::{
+use floodsub::{
     pubsub::FloodSub,
     subscription::{build_floodsub_api_frame, SubAPIMpscFlag},
 };
-use rnet_host::basic_host::HostMpscTx;
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::core::IHostMpscTx;
+use host::basic_host::HostMpscTx;
+use multiaddr::Multiaddr;
+use traits::core::IHostMpscTx;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 

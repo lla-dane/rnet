@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{basic_host::HostMpscTx, upgrader::TransportUpgrader};
 use anyhow::Result;
-use rnet_multiaddr::Multiaddr;
-use rnet_muxer::mplex::conn::AsyncHandler;
-use rnet_transport::transport::Transport;
+use multiaddr::Multiaddr;
+use muxer::mplex::conn::AsyncHandler;
+use transport::transport::Transport;
 use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,

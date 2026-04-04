@@ -1,5 +1,5 @@
 use anyhow::{Error, Result};
-use rnet_traits::core::IReadWriteClose;
+use traits::core::IReadWriteClose;
 
 use crate::{conn::SecureConn, deffi_hellman::DHTransport};
 

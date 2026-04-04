@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
 use anyhow::{Error, Result};
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::{core::IReadWriteClose, transport::ITransport};
+use multiaddr::Multiaddr;
+use traits::{core::IReadWriteClose, transport::ITransport};
 
 use crate::tcp::transport::TcpTransport;
 

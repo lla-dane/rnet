@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use async_trait::async_trait;
 
 use chacha20poly1305::ChaCha20Poly1305;
-use rnet_traits::{core::IReadWriteClose, security::ISecuredConn};
+use traits::{core::IReadWriteClose, security::ISecuredConn};
 
 use crate::ISecureCipher;
 

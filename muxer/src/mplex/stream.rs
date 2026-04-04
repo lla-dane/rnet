@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::muxer::IMuxedStream;
+use peer::peer_info::PeerInfo;
+use traits::muxer::IMuxedStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::mplex::{
@@ -18,6 +18,7 @@ pub struct MplexStream {
     pub is_initiator: bool,
     pub remote_peer_info: PeerInfo,
     pub handlers: HashMap<String, AsyncHandler>,
+    pub global_event_tx: Sender<Vec<u8>>,
 }
 
 impl MplexStream {
@@ -28,6 +29,7 @@ impl MplexStream {
         is_initiator: bool,
         remote_peer_info: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> MplexStream {
         MplexStream {
             muxed_conn_mpsc_tx,
@@ -36,6 +38,7 @@ impl MplexStream {
             is_initiator,
             remote_peer_info,
             handlers,
+            global_event_tx,
         }
     }
 
@@ -64,27 +67,44 @@ impl IMuxedStream for MplexStream {
             None => return Err(Error::msg("mpsc receiver down")),
         }
     }
-
-    async fn negotiate(mut self, proto: Option<Vec<u8>>) -> Result<()> {
-        match self.is_initiator {
-            true => {
-                let protocol = proto.unwrap();
-                let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeReq, &protocol);
-                self.muxed_conn_mpsc_tx.send(frame).await?;
-
-                let res = self.read().await.unwrap();
-                if protocol != res {
-                    return Err(Error::msg("Client: Protocol negotiation failed"));
-                }
-
-                let protocol = String::from_utf8(protocol).unwrap();
+    async fn handle_conn(mut self, proto: Option<Vec<u8>>) -> Result<()> {
+        match self.negotiate(proto).await {
+            Some(protocol) => {
                 let handler = self
                     .handlers
                     .get(&protocol)
                     .cloned()
-                    .ok_or_else(|| Error::msg("Protocol not found"))?;
+                    .ok_or_else(|| Error::msg("Protocol not found"))
+                    .unwrap();
+
+                // match protocol.as_str() {
+                //     FLOODSUB => println!("floodsub here osdbgfi"),
+                //     PING => println!("ping here osdbgfi"),
+                //     _ => {}
+                // }
 
                 handler(self).await.unwrap();
+            }
+            None => return Err(Error::msg("Protocol negotiation failed")),
+        }
+
+        Ok(())
+    }
+
+    async fn negotiate(&mut self, proto: Option<Vec<u8>>) -> Option<String> {
+        match self.is_initiator {
+            true => {
+                let protocol = proto.unwrap();
+                let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeReq, &protocol);
+                self.muxed_conn_mpsc_tx.send(frame).await.unwrap();
+
+                let res = self.read().await.unwrap();
+                if protocol != res {
+                    return None;
+                }
+
+                let protocol = String::from_utf8(protocol).unwrap();
+                return Some(protocol);
             }
             false => {
                 let payload = self.read().await.unwrap();
@@ -93,22 +113,15 @@ impl IMuxedStream for MplexStream {
                 let protocols: Vec<String> = self.handlers.keys().cloned().collect();
 
                 if !protocols.contains(&protocol) {
-                    return Err(Error::msg("Server: protocol negotiation failed"));
+                    return None;
                 }
 
                 let frame = build_frame(self.stream_id, MuxedStreamFlag::HandshakeRes, &payload);
-                self.muxed_conn_mpsc_tx.send(frame).await?;
+                self.muxed_conn_mpsc_tx.send(frame).await.unwrap();
 
-                let handler = self
-                    .handlers
-                    .get(&protocol)
-                    .cloned()
-                    .ok_or_else(|| Error::msg("Protocol not found"))?;
-                handler(self).await.unwrap();
+                return Some(protocol);
             }
         }
-
-        Ok(())
     }
 
     fn is_initiator(&self) -> bool {

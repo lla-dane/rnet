@@ -1,6 +1,6 @@
 use anyhow::{bail, Ok, Result};
 use async_trait::async_trait;
-use rnet_traits::core::IReadWriteClose;
+use traits::core::IReadWriteClose;
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

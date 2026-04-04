@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::transport::ITransport;
+use multiaddr::Multiaddr;
+use traits::transport::ITransport;
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 

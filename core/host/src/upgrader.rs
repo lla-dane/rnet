@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use rnet_muxer::{mplex::conn::AsyncHandler, upgrader::MuxerUpgrader};
-use rnet_peer::peer_info::PeerInfo;
-use rnet_security::{conn::SecureConn, upgrader::SecurityUpgrader};
-use rnet_traits::{
+use muxer::{mplex::conn::AsyncHandler, upgrader::MuxerUpgrader};
+use peer::peer_info::PeerInfo;
+use security::{conn::SecureConn, upgrader::SecurityUpgrader};
+use traits::{
     core::{IRawConnection, IReadWriteClose},
     muxer::IMuxedConn,
 };
@@ -46,13 +46,14 @@ impl TransportUpgrader {
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync,
     {
         Ok(self
             .mux_upgrader
-            .update(stream, is_initiator, remote_peer, handlers)
+            .update(stream, is_initiator, remote_peer, handlers, global_event_tx)
             .await
             .unwrap())
     }

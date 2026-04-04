@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chacha20poly1305::{aead::Aead, AeadCore, Nonce};
 use chacha20poly1305::{aead::OsRng, ChaCha20Poly1305, Key, KeyInit};
-use rnet_traits::core::IReadWriteClose;
+use traits::core::IReadWriteClose;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
 use crate::ISecureCipher;
