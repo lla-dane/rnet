@@ -1,21 +1,21 @@
 [workspace]
 members = [
-    "core",
-    "core/keys",
-    "core/traits",
-    "core/host",
-    "core/multiaddr",
-    "core/peer",
-    "protocols",
-    "protocols/ping",
-    "protocols/floodsub",
-    "proto",
-    "transport",
-    "muxer",
     "examples/tcp",
     "examples/ping",
     "examples/floodsub",
-    "security",
+
+    "crates/identity",
+    "crates/transport",
+    "crates/schema",
+    "crates/security",
+    "crates/muxer",
+    "crates/protocols",
+    "crates/protocols/ping",
+    "crates/protocols/floodsub",
+    "crates/node",
+    "crates/swarm",
+    "crates/multistream"
+
 ]
 
 

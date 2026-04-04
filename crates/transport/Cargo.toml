@@ -1,0 +1,13 @@
+[package]
+name = "transport"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+prost = { workspace = true }
+
+schema = { path = "../schema" }
+identity = {path = "../identity"}
