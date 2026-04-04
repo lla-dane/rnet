@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::{Error, Result};
-use rnet_core::MULTISELECT_CONNECT;
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{core::IRawConnection, muxer::IMuxedConn};
+use peer::peer_info::PeerInfo;
+use traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::mpsc::{self, Sender};
 
 use crate::mplex::conn::{AsyncHandler, MplexConn, MPLEX};
+
+pub const MULTISELECT_CONNECT: &str = "mutilselect/0.0.1";
 
 pub struct MuxerTransport {
     pub muxer_opts: Vec<String>,
@@ -36,12 +37,13 @@ impl MuxerTransport {
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync,
     {
         Ok(self
-            .handshake(stream, is_initiator, remote_peer, handlers)
+            .handshake(stream, is_initiator, remote_peer, handlers, global_event_tx)
             .await
             .unwrap())
     }
@@ -52,6 +54,7 @@ impl MuxerTransport {
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync,
@@ -75,6 +78,7 @@ impl MuxerTransport {
             handlers,
             muxed_conn_mpsc_tx.clone(),
             muxed_conn_mpsc_rx,
+            global_event_tx,
         );
 
         Ok((muxed_conn, muxed_conn_mpsc_tx))

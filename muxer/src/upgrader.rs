@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{core::IRawConnection, muxer::IMuxedConn};
+use peer::peer_info::PeerInfo;
+use traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::mpsc::Sender;
 
 use crate::{mplex::conn::AsyncHandler, transport::MuxerTransport};
@@ -30,13 +30,14 @@ impl MuxerUpgrader {
         is_initiator: bool,
         remote_peer: PeerInfo,
         handlers: HashMap<String, AsyncHandler>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
     where
         T: IRawConnection + Send + Sync,
     {
         Ok(self
             .transport
-            .handshake(stream, is_initiator, remote_peer, handlers)
+            .handshake(stream, is_initiator, remote_peer, handlers, global_event_tx)
             .await
             .unwrap())
     }

@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use rnet_proto::floodsub::Message;
+use proto::floodsub::Message;
 use tokio::sync::{mpsc::Receiver, Mutex};
 use tracing::debug;
 

@@ -1,5 +1,5 @@
 [package]
-name = "rnet-ping"
+name = "ping"
 version = "0.1.0"
 edition = "2021"
 
@@ -16,14 +16,7 @@ bincode = { workspace = true }
 x25519-dalek = { workspace = true }
 chacha20poly1305 = { workspace = true }
 
-rnet-traits = { path = "../../core/traits" }
-rnet-multiaddr = { path = "../../core/multiaddr" }
-rnet-core = { path = "../../core" }
-rnet-peer = { path = "../../core/peer" }
-rnet-keys = { path = "../../core/keys" }
-rnet-transport = { path = "../../transport" }
-rnet-security = { path = "../../security" }
-rnet-muxer = { path = "../../muxer" }
+traits = { path = "../../core/traits" }
 
 rand = "0.8"
 hex = "0.4.3"

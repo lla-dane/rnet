@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use anyhow::Result;
-use rnet_traits::muxer::IMuxedStream;
+use traits::muxer::IMuxedStream;
 use tracing::{debug, warn};
 
 const PING_LENGTH: usize = 32;

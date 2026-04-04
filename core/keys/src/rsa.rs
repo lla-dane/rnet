@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use base58::ToBase58;
 use rand::thread_rng;
-use rnet_traits::core::IKeys;
+use traits::core::IKeys;
 use rsa::pkcs1v15::Signature;
 use rsa::signature::{Keypair, SignerMut, Verifier};
 use rsa::{

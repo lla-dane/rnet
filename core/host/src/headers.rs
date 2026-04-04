@@ -106,7 +106,7 @@ pub fn process_host_frame(payload: Vec<u8>) -> Result<(HostMpscTxFlag, HeaderVal
 
 #[cfg(test)]
 mod tests {
-    use rnet_multiaddr::Multiaddr;
+    use multiaddr::Multiaddr;
 
     use super::*;
 

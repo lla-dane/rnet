@@ -1,15 +1,15 @@
 use async_trait::async_trait;
-use rnet_keys::rsa::RsaKeyPair;
+use keys::rsa::RsaKeyPair;
 
-use rnet_muxer::{
+use muxer::{
     mplex::{
         conn::AsyncHandler,
         headers::{build_frame, MuxedStreamFlag},
     },
     transport::MuxerTransport,
 };
-use rnet_security::{conn::SecureConn, transport::SecureTransport};
-use rnet_transport::{raw_conn::RawConnection, tcp::transport::TcpTransport};
+use security::{conn::SecureConn, transport::SecureTransport};
+use transport::{raw_conn::RawConnection, tcp::transport::TcpTransport};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -20,9 +20,9 @@ use tokio::sync::{
 };
 
 use anyhow::{Error, Result};
-use rnet_multiaddr::{Multiaddr, Protocol};
-use rnet_peer::{peer_info::PeerInfo, PeerData};
-use rnet_traits::{
+use multiaddr::{Multiaddr, Protocol};
+use peer::{peer_info::PeerInfo, PeerData};
+use traits::{
     core::{IHostMpscTx, IMultistream, IReadWriteClose},
     muxer::IMuxedConn,
     transport::ITransport,
@@ -33,9 +33,20 @@ use tracing::{debug, info, warn};
 use crate::{
     headers::{build_host_frame, process_host_frame, HostMpscTxFlag},
     multistream::multiselect::Multiselect,
+    protocol::{InnerProtocol, InnerProtocolOpt},
 };
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
+
+// TODO: After sometime:
+// Only one endpoint to connect with the whole rnet node: HostMpscTx
+// Set protocols which are going to be active in host-initiation
+// All the internal function calls will be event driven from HostMpscTx,
+// and received from global_event_rx
+// Integrate Swarm with BasicHost
+// Fix the dependency tree
+
+// Happy exams !!
 
 #[derive(Debug)]
 pub struct HostMpscTx {
@@ -55,6 +66,8 @@ pub struct BasicHost {
     pub handlers: HashMap<String, AsyncHandler>,
     pub host_mpsc_tx: Arc<HostMpscTx>,
     pub host_mpsc_rx: Receiver<Vec<u8>>,
+    pub global_event_tx: Sender<Vec<u8>>,
+    pub protocols: Vec<InnerProtocol>,
 }
 /// new
 /// run
@@ -71,7 +84,10 @@ pub struct BasicHost {
 /// get_live_peers
 /// is_peer_connected
 impl BasicHost {
-    pub async fn new(listen_addr: &mut Multiaddr) -> Result<(Self, Arc<HostMpscTx>)> {
+    pub async fn new(
+        listen_addr: &mut Multiaddr,
+        protocol_opt: Vec<InnerProtocolOpt>,
+    ) -> Result<(Self, Arc<HostMpscTx>, Receiver<Vec<u8>>)> {
         let listener = TcpTransport::listen(listen_addr).await.unwrap();
         let local_addr = listener.get_local_addr().unwrap();
         let parts: Vec<&str> = local_addr.split(':').collect();
@@ -91,6 +107,7 @@ impl BasicHost {
 
         info!("Host listening on: {}", listen_addr.to_string());
         let (host_mpsc_tx, host_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+        let (global_event_tx, global_event_rx) = mpsc::channel::<Vec<u8>>(100);
 
         let host_tx = Arc::new(HostMpscTx {
             host_mpsc_tx,
@@ -115,9 +132,23 @@ impl BasicHost {
                 handlers: HashMap::new(),
                 host_mpsc_tx: host_tx.clone(),
                 host_mpsc_rx,
+                global_event_tx,
+                protocols: vec![],
             },
             host_tx,
+            global_event_rx,
         ))
+    }
+
+    async fn execute_protocols(&self, protocol_opt: Vec<InnerProtocolOpt>) -> Result<()> {
+        for opt in protocol_opt {
+            match opt {
+                InnerProtocolOpt::Floodsub => {}
+                InnerProtocolOpt::Ping => {}
+            }
+        }
+
+        Ok(())
     }
 
     pub fn set_stream_handler(&mut self, protocol: &str, handler: AsyncHandler) -> Result<()> {
@@ -257,6 +288,7 @@ impl BasicHost {
                 is_initiator,
                 remote_peer.clone(),
                 self.handlers.clone(),
+                self.global_event_tx.clone(),
             )
             .await
             .unwrap();

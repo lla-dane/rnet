@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Error, Result};
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{
+use peer::peer_info::PeerInfo;
+use traits::{
     core::{IHostMpscTx, IRawConnection},
     muxer::IMuxedConn,
 };
@@ -25,6 +25,7 @@ pub struct MuxedConn {
     pub is_initiator: bool,
     pub remote_peer: PeerInfo,
     pub muxed_mpsc_tx: Sender<Vec<u8>>,
+    pub global_event_tx: Sender<Vec<u8>>,
 }
 
 // TODO: in future if we want a unified conn-handler in MuxedConn itself,
@@ -32,6 +33,7 @@ pub struct MuxedConn {
 // will be from MuxedConn, but the decision making will be in internal
 // multiplexing router i.e mplex / yamux
 impl MuxedConn {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<W>(
         protocol: &str,
         raw_conn: W,
@@ -40,6 +42,7 @@ impl MuxedConn {
         handlers: HashMap<String, AsyncHandler>,
         muxed_mpsc_rx: Receiver<Vec<u8>>,
         muxed_mpsc_tx: Sender<Vec<u8>>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> Result<Self>
     where
         W: IRawConnection + Send + Sync + 'static,
@@ -53,6 +56,7 @@ impl MuxedConn {
                     handlers,
                     muxed_mpsc_tx.clone(),
                     muxed_mpsc_rx,
+                    global_event_tx.clone(),
                 );
 
                 Ok(MuxedConn {
@@ -60,6 +64,7 @@ impl MuxedConn {
                     is_initiator,
                     remote_peer,
                     muxed_mpsc_tx,
+                    global_event_tx,
                 })
             }
             _ => Err(Error::msg("protocol not found")),

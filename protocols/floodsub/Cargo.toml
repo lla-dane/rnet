@@ -1,5 +1,5 @@
 [package]
-name = "rnet-floodsub"
+name = "floodsub"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,10 +10,6 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 prost = {workspace = true}
 
-
-rnet-multiaddr = { path = "../../core/multiaddr" }
-rnet-traits = { path = "../../core/traits" }
-rnet-transport = { path = "../../transport" }
-rnet-proto = { path = "../../proto" }
-rnet-muxer = { path = "../../muxer" }
-rnet-peer = { path = "../../core/peer" }
+traits = { path = "../../core/traits" }
+proto = { path = "../../proto" }
+peer = { path = "../../core/peer" }

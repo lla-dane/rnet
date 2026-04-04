@@ -2,9 +2,9 @@ use std::env;
 use std::time::Duration;
 
 use anyhow::{Ok, Result};
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::{core::IReadWriteClose, transport::ITransport};
-use rnet_transport::tcp::transport::TcpTransport;
+use multiaddr::Multiaddr;
+use traits::{core::IReadWriteClose, transport::ITransport};
+use transport::tcp::transport::TcpTransport;
 use tokio::time::sleep;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;

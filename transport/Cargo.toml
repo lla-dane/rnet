@@ -1,5 +1,5 @@
 [package]
-name = "rnet-transport"
+name = "transport"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,9 @@ edition = "2021"
 tokio = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+
 prost = { workspace = true }
-rnet-peer = { path = "../core/peer" }
-rnet-traits = { path = "../core/traits" }
-rnet-proto = { path = "../proto" }
-rnet-multiaddr = { path = "../core/multiaddr" }
+peer = { path = "../core/peer" }
+traits = { path = "../core/traits" }
+proto = { path = "../proto" }
+multiaddr = { path = "../core/multiaddr" }

@@ -1,8 +1,8 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::muxer::IMuxedStream;
-use rnet_traits::{
+use peer::peer_info::PeerInfo;
+use traits::muxer::IMuxedStream;
+use traits::{
     core::{IHostMpscTx, IRawConnection},
     muxer::IMuxedConn,
 };
@@ -35,6 +35,7 @@ where
     handlers: HashMap<String, AsyncHandler>,
     pub mpsc_tx: Sender<Vec<u8>>,
     pub mpsc_rx: Receiver<Vec<u8>>,
+    pub global_event_tx: Sender<Vec<u8>>,
 }
 
 impl<T> MplexConn<T>
@@ -48,6 +49,7 @@ where
         handlers: HashMap<String, AsyncHandler>,
         mpsc_tx: Sender<Vec<u8>>,
         mpsc_rx: Receiver<Vec<u8>>,
+        global_event_tx: Sender<Vec<u8>>,
     ) -> MplexConn<T> {
         MplexConn {
             raw_conn,
@@ -58,6 +60,7 @@ where
             handlers,
             mpsc_tx,
             mpsc_rx,
+            global_event_tx,
         }
     }
 }
@@ -84,6 +87,7 @@ where
                 let (muxed_stream_mpsc_tx, muxed_stream_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
                 match self.is_initiator {
+                    // TODO: Do somthing to merge these 2 match cases
                     false => {
                         let stream = MplexStream::new(
                             self.mpsc_tx.clone(),
@@ -92,12 +96,13 @@ where
                             self.is_initiator,
                             self.remote_peer_info.clone(),
                             self.handlers.clone(),
+                            self.global_event_tx.clone(),
                         );
                         self.streams.insert(stream_id, muxed_stream_mpsc_tx.clone());
 
                         // SERVER HANDSHAKE PROCEDURE
                         tokio::spawn(async move {
-                            stream.negotiate(None).await.unwrap();
+                            stream.handle_conn(None).await.unwrap();
                         });
                     }
                     true => {
@@ -109,6 +114,7 @@ where
                             self.is_initiator,
                             self.remote_peer_info.clone(),
                             self.handlers.clone(),
+                            self.global_event_tx.clone(),
                         );
                         self.streams
                             .insert(self._stream_counter, muxed_stream_mpsc_tx.clone());
@@ -123,7 +129,7 @@ where
 
                         // CLIENT HANDSHAKE PROCEDURE
                         tokio::spawn(async move {
-                            stream.negotiate(Some(payload_extracted)).await.unwrap();
+                            stream.handle_conn(Some(payload_extracted)).await.unwrap();
                         });
                     }
                 };

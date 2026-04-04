@@ -1,9 +1,11 @@
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
-use rnet_core::{IDENTIFY, MULTISELECT_CONNECT};
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{core::IMultistream, security::ISecuredConn};
-use rnet_transport::raw_conn::RawConnection;
+use peer::peer_info::PeerInfo;
+use traits::{core::IMultistream, security::ISecuredConn};
+use transport::raw_conn::RawConnection;
+
+pub const MULTISELECT_CONNECT: &str = "mutilselect/0.0.1";
+pub const IDENTIFY: &str = "rnet/identify/0.0.1";
 
 #[derive(Debug)]
 pub struct Multiselect {}

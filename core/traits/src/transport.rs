@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use rnet_multiaddr::Multiaddr;
+use multiaddr::Multiaddr;
 use std::net::SocketAddr;
 
 #[async_trait]

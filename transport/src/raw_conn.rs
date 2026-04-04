@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use async_trait::async_trait;
-use rnet_peer::peer_info::PeerInfo;
-use rnet_traits::{core::IRawConnection, security::ISecuredConn};
+use peer::peer_info::PeerInfo;
+use traits::{core::IRawConnection, security::ISecuredConn};
 
 #[derive(Debug)]
 pub struct RawConnection<T>
@@ -43,7 +43,7 @@ where
 #[cfg(test)]
 mod tests {
     use prost::Message as ProstMessage;
-    use rnet_proto::floodsub::{rpc::SubOpts, Message, Rpc};
+    use proto::floodsub::{rpc::SubOpts, Message, Rpc};
 
     #[test]
     fn test_floodsub_rpc_serialization() {
