@@ -1,9 +1,9 @@
 use anyhow::Result;
-use node::node::Node;
 use identity::multiaddr::Multiaddr;
 use identity::traits::core::IHostMpscTx;
 use identity::traits::muxer::IMuxedStream;
 use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
+use node::node::Node;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;

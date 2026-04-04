@@ -1,10 +1,10 @@
 mod cli;
 
 use anyhow::Result;
-use node::node::Node;
 use floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
 use identity::multiaddr::Multiaddr;
 use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
+use node::node::Node;
 use std::sync::Arc;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
