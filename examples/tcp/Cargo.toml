@@ -13,7 +13,7 @@ anyhow = {workspace = true}
 async-trait = {workspace = true}
 tracing = {workspace = true}
 tracing-subscriber = {workspace = true}
-rnet-tcp = {path = "../../transport/tcp"}
-rnet-core = {path = "../../core"}
-rnet-traits = {path = "../../core/traits"}
-rnet-multiaddr = {path = "../../core/multiaddr"}
+
+transport = { path = "../../crates/transport" }
+node = {path = "../../crates/node"}
+identity = {path = "../../crates/identity"}

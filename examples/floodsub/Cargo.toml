@@ -1,5 +1,5 @@
 [package]
-name = "floodsub"
+name = "example-floodsub"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,13 +13,12 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-rnet-tcp = { path = "../../transport/tcp" }
-rnet-core = { path = "../../core" }
-rnet-traits = { path = "../../core/traits" }
-rnet-host = { path = "../../core/host" }
-rnet-multiaddr = { path = "../../core/multiaddr" }
-rnet-peer = { path = "../../core/peer" }
-rnet-mplex = { path = "../../muxer/mplex" }
-rnet-floodsub = { path = "../../protocols/floodsub" }
+
+transport = { path = "../../crates/transport" }
+muxer = { path = "../../crates/muxer" }
+node = { path = "../../crates/node" }
+identity = { path = "../../crates/identity" }
+floodsub = { path = "../../crates/protocols/floodsub" }
+
 rsa = { workspace = true }
 bincode = { workspace = true }

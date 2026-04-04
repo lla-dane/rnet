@@ -1,9 +1,9 @@
 use anyhow::Result;
-use rnet_host::basic_host::BasicHost;
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::host::IHostMpscTx;
-use rnet_traits::stream::IMuxedStream;
+use identity::multiaddr::Multiaddr;
+use identity::traits::core::IHostMpscTx;
+use identity::traits::muxer::IMuxedStream;
+use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
+use node::node::Node;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
+    let (mut host, host_tx, _global_rx) = Node::new(&mut listen_addr, vec![]).await.unwrap();
 
     let mut mode = "server".to_string();
     let mut destination = "";
@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
         destination = &args[1];
     }
 
-    let peer_data = host.peer_data.lock().await.clone();
+    let peer_data = host.peerstore.lock().await.clone();
 
     let handler: AsyncHandler =
         Arc::new(|mut stream: MplexStream| Box::pin(async move { handle_ping(&mut stream).await }));

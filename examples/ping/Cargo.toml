@@ -1,5 +1,5 @@
 [package]
-name = "ping"
+name = "example-ping"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,11 +18,7 @@ chacha20poly1305 = { workspace = true }
 bincode = { workspace = true }
 hex = {workspace = true}
 
-rnet-tcp = { path = "../../transport/tcp" }
-rnet-core = { path = "../../core" }
-rnet-traits = { path = "../../core/traits" }
-rnet-host = { path = "../../core/host" }
-rnet-multiaddr = { path = "../../core/multiaddr" }
-rnet-peer = { path = "../../core/peer" }
-rnet-mplex = { path = "../../muxer/mplex" }
-
+transport = { path = "../../crates/transport" }
+muxer = { path = "../../crates/muxer" }
+node = { path = "../../crates/node" }
+identity = { path = "../../crates/identity" }

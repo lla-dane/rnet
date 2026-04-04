@@ -1,11 +1,11 @@
 use anyhow::Result;
-use rnet_floodsub::{
+use floodsub::{
     pubsub::FloodSub,
     subscription::{build_floodsub_api_frame, SubAPIMpscFlag},
 };
-use rnet_host::basic_host::HostMpscTx;
-use rnet_multiaddr::Multiaddr;
-use rnet_traits::host::IHostMpscTx;
+use identity::multiaddr::Multiaddr;
+use identity::traits::core::IHostMpscTx;
+use node::node::HostMpscTx;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
@@ -19,7 +19,7 @@ const COMMANDS: &[&str] = &[
     "new_stream <maddr>         => open a new floodsub stream with the peer",
     "join <topic>               => subscribe to a new-topic",
     "leave <topic>              => unsubscribe to a new-topic",
-    "publish <topic> <msg>          => publish a msg to a topic",
+    "publish <topic> <msg>      => publish a msg to a topic",
     "topics                     => list the subscribed topics",
     "peers                      => list the connected peers",
     "mesh                       => map of topics -> peer",

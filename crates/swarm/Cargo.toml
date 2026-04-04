@@ -1,0 +1,29 @@
+[package]
+name = "swarm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+rsa = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
+x25519-dalek = { workspace = true }
+chacha20poly1305 = { workspace = true }
+
+identity = { path = "../identity" }
+# multistream = { path = "../multistream" }
+transport = { path = "../transport" }
+security = { path = "../security" }
+muxer = { path = "../muxer" }
+# floodsub = { path = "../protocols/floodsub" }
+# ping = { path = "../protocols/ping" }
+
+rand = "0.8"
+hex = "0.4.3"
+rsa-der = "0.3.0"
+base58 = "0.2.0"

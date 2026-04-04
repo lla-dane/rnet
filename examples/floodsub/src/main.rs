@@ -1,18 +1,21 @@
 mod cli;
 
 use anyhow::Result;
-use rnet_floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
-use rnet_host::basic_host::BasicHost;
-use rnet_mplex::{mplex::AsyncHandler, mplex_stream::MplexStream};
-use rnet_multiaddr::Multiaddr;
+use floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
+use identity::multiaddr::Multiaddr;
+use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
+use node::node::Node;
 use std::sync::Arc;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
 
 use crate::cli::cli_loop;
 
-const FLOODSUB: &str = "/floodsub/1.0.0";
+const FLOODSUB: &str = "rnet/floodsub/0.0.1";
 
+// TODO: Put these receiver loops in FLoodsub module only, and
+// when something is received, just emit an event and receive
+// them via `global_rx` in the application side
 async fn receiver_loop(mut sub_api: SubscriptionAPI) {
     let topic = sub_api.topic_id.clone();
     loop {
@@ -39,10 +42,10 @@ async fn main() -> Result<()> {
         .init();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx) = BasicHost::new(&mut listen_addr).await.unwrap();
+    let (mut host, host_tx, _global_rx) = Node::new(&mut listen_addr, vec![]).await.unwrap();
 
     let local_peer_info = {
-        let peer_data = host.peer_data.lock().await;
+        let peer_data = host.peerstore.lock().await;
         peer_data.peer_info.clone()
     };
 
