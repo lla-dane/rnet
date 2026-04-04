@@ -1,9 +1,9 @@
 use anyhow::Result;
-use host::basic_host::BasicHost;
-use multiaddr::Multiaddr;
+use node::node::Node;
+use identity::multiaddr::Multiaddr;
+use identity::traits::core::IHostMpscTx;
+use identity::traits::muxer::IMuxedStream;
 use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
-use traits::core::IHostMpscTx;
-use traits::muxer::IMuxedStream;
 use std::{env, sync::Arc};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx, global_rx) = BasicHost::new(&mut listen_addr, vec![]).await.unwrap();
+    let (mut host, host_tx, _global_rx) = Node::new(&mut listen_addr, vec![]).await.unwrap();
 
     let mut mode = "server".to_string();
     let mut destination = "";

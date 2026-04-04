@@ -1,0 +1,68 @@
+use anyhow::{bail, Ok, Result};
+use async_trait::async_trait;
+use identity::traits::core::IReadWriteClose;
+use std::net::SocketAddr;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
+
+#[derive(Debug)]
+pub struct TcpConn {
+    pub stream: TcpStream,
+}
+
+#[async_trait]
+impl IReadWriteClose for TcpConn {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let n = self.stream.read(buf).await?;
+        return Ok(n);
+    }
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        let mut total = 0;
+        while total < buf.len() {
+            let n = self.read(&mut buf[total..]).await?;
+            if n == 0 {
+                bail!("Connection closed while reading");
+            }
+            total += n;
+        }
+
+        Ok(())
+    }
+
+    async fn recv_msg(&mut self) -> Result<Vec<u8>> {
+        let mut len_buf = [0u8; 4];
+        self.read_exact(&mut len_buf).await?;
+        let len = u32::from_be_bytes(len_buf) as usize;
+
+        let mut data = vec![0u8; len];
+        self.read_exact(&mut data).await?;
+
+        Ok(data)
+    }
+
+    async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()> {
+        let len = msg.len() as u32;
+        let len_bytes = len.to_be_bytes();
+
+        self.write(&len_bytes).await?;
+        self.write(msg).await?;
+
+        Ok(())
+    }
+    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let n = self.stream.write(buf).await?;
+        return Ok(n);
+    }
+    async fn close(&mut self) -> Result<()> {
+        self.stream.shutdown().await?;
+        Ok(())
+    }
+}
+
+impl TcpConn {
+    pub fn get_ip(&self) -> Result<SocketAddr> {
+        Ok(self.stream.local_addr().unwrap())
+    }
+}

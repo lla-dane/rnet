@@ -1,4 +1,5 @@
 - [ ]
+- [ ] upgrade the crate placements 
 - [ ] fix the placement of `global_event_tx` in `MuxedConn` and `MplexConn`
 - [ ] make all the notifications to be event-driven
 - [ ] you dont fucking get ownership of `IMuxedStream`, you only get Events5
@@ -33,3 +34,38 @@
 - [x] create a service to notify the protocols about dead-peers from host-stream-handler
 - [ ] look into if we can do with BasicHost::run which we did with Floodsub::handle_api
 - [x] make a floodsub api listener function
+
+.
+├── Cargo.toml (workspace)
+
+├── crates
+│   ├── traits              # 🔹 Pure interfaces ONLY
+│   │   ├── transport.rs
+│   │   ├── security.rs
+│   │   ├── muxer.rs
+│   │   └── connection.rs
+│   │
+│   ├── types               # 🔹 Shared data structures
+│   │   ├── peer.rs
+│   │   ├── multiaddr.rs
+│   │   └── keys.rs
+│   │
+│   ├── transport-tcp       # 🔹 TCP implementation
+│   ├── security-noise      # 🔹 Noise / TLS etc
+│   ├── muxer-mplex         # 🔹 Mplex
+│   │
+│   ├── multistream         # 🔹 protocol negotiation (generic)
+│   │
+│   ├── upgrader            # 🔹 pipeline: transport → security → muxer
+│   │
+│   ├── swarm               # 🔹 connection orchestration
+│   ├── host                # 🔹 user-facing API
+│   │
+│   ├── protocols           # 🔹 ping, floodsub
+│   │   ├── ping
+│   │   └── floodsub
+│   │
+│   └── proto               # 🔹 protobufs
+│
+├── examples
+└── README.md

@@ -3,9 +3,9 @@ use floodsub::{
     pubsub::FloodSub,
     subscription::{build_floodsub_api_frame, SubAPIMpscFlag},
 };
-use host::basic_host::HostMpscTx;
-use multiaddr::Multiaddr;
-use traits::core::IHostMpscTx;
+use identity::multiaddr::Multiaddr;
+use identity::traits::core::IHostMpscTx;
+use node::node::HostMpscTx;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 

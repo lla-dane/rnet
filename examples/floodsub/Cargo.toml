@@ -14,14 +14,11 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-transport = { path = "../../transport" }
-core = { path = "../../core" }
-muxer = { path = "../../muxer" }
-traits = { path = "../../core/traits" }
-host = { path = "../../core/host" }
-multiaddr = { path = "../../core/multiaddr" }
-peer = { path = "../../core/peer" }
-floodsub = { path = "../../protocols/floodsub" }
+transport = { path = "../../crates/transport" }
+muxer = { path = "../../crates/muxer" }
+node = { path = "../../crates/node" }
+identity = { path = "../../crates/identity" }
+floodsub = { path = "../../crates/protocols/floodsub" }
 
 rsa = { workspace = true }
 bincode = { workspace = true }
