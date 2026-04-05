@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use identity::peer::PeerInfo;
 use identity::traits::muxer::IMuxedStream;
 use identity::traits::{
-    core::{IHostMpscTx, IRawConnection},
+    core::{INode, IRawConnection},
     muxer::IMuxedConn,
 };
 
@@ -173,7 +173,7 @@ where
     async fn conn_handler(
         &mut self,
         peer_id: &str,
-        host_mpsc_tx: Arc<dyn IHostMpscTx + Send + Sync>,
+        host_mpsc_tx: Arc<dyn INode + Send + Sync>,
     ) -> Result<()> {
         let mut write_queue = VecDeque::<Vec<u8>>::new();
 

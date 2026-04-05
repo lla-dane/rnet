@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{Error, Result};
 use identity::peer::PeerInfo;
 use identity::traits::{
-    core::{IHostMpscTx, IRawConnection},
+    core::{INode, IRawConnection},
     muxer::IMuxedConn,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -74,7 +74,7 @@ impl MuxedConn {
     pub async fn conn_handler(
         mut self,
         peer_id: &str,
-        host_mpsc_tx: Arc<dyn IHostMpscTx + Send + Sync + 'static>,
+        host_mpsc_tx: Arc<dyn INode + Send + Sync + 'static>,
     ) -> Result<()> {
         let peer_id = peer_id.to_string();
         tokio::spawn(async move {

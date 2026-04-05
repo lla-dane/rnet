@@ -27,7 +27,7 @@ pub trait IRawConnection {
 }
 
 #[async_trait]
-pub trait IHostMpscTx {
+pub trait INode {
     async fn connect(&self, maddr: &Multiaddr) -> Result<()>;
     async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()>;
     async fn on_disconnect(&self, peer_id: &str) -> Result<()>;

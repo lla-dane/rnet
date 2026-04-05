@@ -4,7 +4,7 @@ use anyhow::Result;
 use floodsub::{pubsub::FloodSub, subscription::SubscriptionAPI};
 use identity::multiaddr::Multiaddr;
 use muxer::mplex::{conn::AsyncHandler, stream::MplexStream};
-use node::node::Node;
+use node::inner::NodeInner;
 use std::sync::Arc;
 use tracing::{debug, info};
 use tracing_subscriber::EnvFilter;
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         .init();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx, _global_rx) = Node::new(&mut listen_addr, vec![]).await.unwrap();
+    let (mut host, host_tx, _global_rx) = NodeInner::new(&mut listen_addr, vec![]).await.unwrap();
 
     let local_peer_info = {
         let peer_data = host.peerstore.lock().await;
