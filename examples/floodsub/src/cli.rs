@@ -4,8 +4,8 @@ use floodsub::{
     subscription::{build_floodsub_api_frame, SubAPIMpscFlag},
 };
 use identity::multiaddr::Multiaddr;
-use identity::traits::core::IHostMpscTx;
-use node::node::HostMpscTx;
+use identity::traits::core::INode;
+use node::node::Node;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
@@ -31,7 +31,7 @@ fn print_commands() {
     }
 }
 
-async fn handle_cmd(line: &str, host_tx: &Arc<HostMpscTx>, floodsub: &Arc<FloodSub>) -> Result<()> {
+async fn handle_cmd(line: &str, host_tx: &Arc<Node>, floodsub: &Arc<FloodSub>) -> Result<()> {
     let mut parts = line.split_whitespace();
     let cmd = parts.next().unwrap();
 
@@ -121,7 +121,7 @@ async fn handle_cmd(line: &str, host_tx: &Arc<HostMpscTx>, floodsub: &Arc<FloodS
     Ok(())
 }
 
-pub async fn cli_loop(host_tx: Arc<HostMpscTx>, floodsub: Arc<FloodSub>) -> Result<()> {
+pub async fn cli_loop(host_tx: Arc<Node>, floodsub: Arc<FloodSub>) -> Result<()> {
     let stdin = io::BufReader::new(io::stdin());
     let mut lines = stdin.lines();
 

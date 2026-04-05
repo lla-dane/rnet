@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::traits::core::IHostMpscTx;
+use crate::traits::core::INode;
 
 #[async_trait]
 pub trait IMuxedConn: Send + Sync {
@@ -11,7 +11,7 @@ pub trait IMuxedConn: Send + Sync {
     async fn conn_handler(
         &mut self,
         peer_id: &str,
-        host_mpsc_tx: Arc<dyn IHostMpscTx + Send + Sync>,
+        host_mpsc_tx: Arc<dyn INode + Send + Sync>,
     ) -> Result<()>;
     async fn send(&self, msg: Vec<u8>) -> Result<()>;
     #[allow(clippy::ptr_arg)]
