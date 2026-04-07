@@ -50,7 +50,7 @@ pub async fn handle_ping(stream: &mut MplexStream) -> Result<()> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new("trace"))
         .without_time()
@@ -92,5 +92,5 @@ async fn main() -> Result<()> {
             .unwrap();
     }
 
-    Ok(())
+    loop {}
 }

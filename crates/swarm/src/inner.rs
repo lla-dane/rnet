@@ -67,7 +67,7 @@ impl SwarmInner {
         peer_id: String,
         handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
-    ) -> Result<(Arc<Swarm>, Arc<Mutex<PeerData>>)> {
+    ) -> Result<(Arc<Swarm>, Arc<Mutex<PeerData>>, PeerInfo)> {
         // create transport
         // update the actual listen ip
         // create peerstore
@@ -85,11 +85,13 @@ impl SwarmInner {
         listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
         // Create the peerstore
+        let local_peer_info = PeerInfo {
+            peer_id,
+            listen_addr: listen_addr.clone().to_string(),
+        };
+
         let peerstore = Arc::new(Mutex::new(PeerData {
-            peer_info: PeerInfo {
-                peer_id,
-                listen_addr: listen_addr.clone().to_string(),
-            },
+            peer_info: local_peer_info.clone(),
             peer_store: HashMap::new(),
         }));
 
@@ -114,7 +116,7 @@ impl SwarmInner {
             swarm_inner.initiate(swarm_mpsc_rx).await.unwrap();
         });
 
-        Ok((swarm_mpsc_tx, peerstore))
+        Ok((swarm_mpsc_tx, peerstore, local_peer_info))
     }
 
     pub async fn initiate(&mut self, mut swarm_mpsc_rx: Receiver<Vec<u8>>) -> Result<()> {

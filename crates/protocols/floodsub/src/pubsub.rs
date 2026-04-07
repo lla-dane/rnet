@@ -44,9 +44,10 @@ pub struct FloodSub {
 }
 
 impl FloodSub {
-    pub async fn new(local_peer_info: PeerInfo) -> Result<(Arc<Self>, Sender<Vec<u8>>)> {
+    pub async fn new(local_peer: &PeerInfo) -> Result<(Arc<Self>, Sender<Vec<u8>>)> {
         let (floodsub_mpsc_tx, floodsub_mpsc_rx) = mpsc::channel::<Vec<u8>>(300);
         let last_seen_cache = Arc::new(Mutex::new(HashMap::new()));
+        let local_peer_info = local_peer.clone();
 
         let floodsub = Arc::new(FloodSub {
             local_peer_info,

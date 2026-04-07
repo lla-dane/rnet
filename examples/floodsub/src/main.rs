@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
         NodeInner::new(&mut listen_addr, vec![]).await.unwrap();
 
     // TODO: DO all these things inside
-    let (floodsub, _) = FloodSub::new(local_peer_info).await.unwrap();
+    let (floodsub, _) = FloodSub::new(&local_peer_info).await.unwrap();
 
     let handler_fs = floodsub.clone();
     let handler: AsyncHandler = Arc::new(move |stream: MplexStream| {

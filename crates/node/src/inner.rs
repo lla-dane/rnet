@@ -1,3 +1,4 @@
+use floodsub::pubsub::FloodSub;
 use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr, peer::PeerInfo, traits::core::ISwarm};
 
 use muxer::mplex::{
@@ -89,7 +90,7 @@ impl NodeInner {
         });
 
         // swarm/local_peer_info
-        let (swarm_mpsc_tx, peerstore) = SwarmInner::new(
+        let (swarm_mpsc_tx, peerstore, local_peer_info) = SwarmInner::new(
             "tcp",
             listen_addr,
             peer_id.clone(),
@@ -98,10 +99,6 @@ impl NodeInner {
         )
         .await
         .unwrap();
-        let local_peer_info = {
-            let peer_data = peerstore.lock().await;
-            peer_data.peer_info.clone()
-        };
 
         info!("Node listening on: {}", listen_addr.to_string());
 
@@ -161,10 +158,18 @@ impl NodeInner {
         // TODO: ERROR HANDLING
     }
 
-    async fn _execute_protocols(&self, protocol_opt: Vec<InnerProtocolOpt>) -> Result<()> {
+    async fn _execute_protocols(
+        &self,
+        protocol_opt: Vec<InnerProtocolOpt>,
+        local_peer: &PeerInfo,
+    ) -> Result<()> {
         for opt in protocol_opt {
             match opt {
-                InnerProtocolOpt::Floodsub => {}
+                InnerProtocolOpt::Floodsub => {
+                    let (floodsub, _) = FloodSub::new(local_peer).await.unwrap();
+                    
+                
+                }
                 InnerProtocolOpt::Ping => {}
             }
         }
