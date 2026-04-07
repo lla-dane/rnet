@@ -8,10 +8,11 @@ use crate::ISecureCipher;
 pub struct DHTransport {}
 
 impl DHTransport {
-    pub async fn handshake<T>(&self, stream: &mut T, is_initiator: bool) -> Result<ChaCha20Poly1305>
-    where
-        T: IReadWriteClose,
-    {
+    pub async fn handshake(
+        &self,
+        stream: &mut Box<dyn IReadWriteClose>,
+        is_initiator: bool,
+    ) -> Result<Box<dyn ISecureCipher>> {
         // csprng - random generator
         // ephimeral secret-key generation
         // public-key generation
@@ -50,7 +51,7 @@ impl DHTransport {
         let pre_cipher = Key::from_slice(shared_secret.as_bytes());
         let cipher_key = ChaCha20Poly1305::new(pre_cipher);
 
-        Ok(cipher_key)
+        Ok(Box::new(cipher_key))
     }
 }
 

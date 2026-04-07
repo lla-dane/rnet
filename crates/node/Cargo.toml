@@ -17,6 +17,7 @@ chacha20poly1305 = { workspace = true }
 
 identity = { path = "../identity" }
 multistream = { path = "../multistream" }
+swarm = {path = "../swarm"}
 transport = { path = "../transport" }
 security = { path = "../security" }
 muxer = { path = "../muxer" }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use identity::peer::PeerInfo;
@@ -6,9 +7,11 @@ use identity::traits::{
     core::{IRawConnection, IReadWriteClose},
     muxer::IMuxedConn,
 };
+use muxer::conn::MuxedConn;
 use muxer::{mplex::conn::AsyncHandler, upgrader::MuxerUpgrader};
 use security::{conn::SecureConn, upgrader::SecurityUpgrader};
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 
 pub struct ConnUpgrader {
     sec_upgrader: SecurityUpgrader,
@@ -29,10 +32,11 @@ impl ConnUpgrader {
         }
     }
 
-    pub async fn update_security<T>(&self, stream: T, is_initiator: bool) -> Result<SecureConn<T>>
-    where
-        T: IReadWriteClose + Send + Sync,
-    {
+    pub async fn update_security(
+        &self,
+        stream: Box<dyn IReadWriteClose + Send + Sync + 'static>,
+        is_initiator: bool,
+    ) -> Result<SecureConn> {
         Ok(self
             .sec_upgrader
             .update(stream, is_initiator)
@@ -45,11 +49,11 @@ impl ConnUpgrader {
         stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
-    ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
+    ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
-        T: IRawConnection + Send + Sync,
+        T: IRawConnection + Send + Sync + 'static,
     {
         Ok(self
             .mux_upgrader

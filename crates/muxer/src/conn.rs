@@ -2,11 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Error, Result};
 use identity::peer::PeerInfo;
-use identity::traits::{
-    core::{INode, IRawConnection},
-    muxer::IMuxedConn,
-};
+use identity::traits::core::ISwarm;
+use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::Mutex;
 
 use crate::mplex::conn::{AsyncHandler, MplexConn};
 
@@ -39,7 +38,7 @@ impl MuxedConn {
         raw_conn: W,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         muxed_mpsc_rx: Receiver<Vec<u8>>,
         muxed_mpsc_tx: Sender<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
@@ -74,12 +73,12 @@ impl MuxedConn {
     pub async fn conn_handler(
         mut self,
         peer_id: &str,
-        host_mpsc_tx: Arc<dyn INode + Send + Sync + 'static>,
+        swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync + 'static>,
     ) -> Result<()> {
         let peer_id = peer_id.to_string();
         tokio::spawn(async move {
             self.conn
-                .conn_handler(&peer_id, host_mpsc_tx)
+                .conn_handler(&peer_id, swarm_mpsc_tx)
                 .await
                 .unwrap();
         });

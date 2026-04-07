@@ -1,57 +1,47 @@
-use std::{collections::HashMap, sync::Arc};
+use async_trait::async_trait;
+use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr, traits::core::ISwarm};
 
-use crate::upgrader::ConnUpgrader;
-use anyhow::Result;
-use identity::multiaddr::Multiaddr;
-use muxer::mplex::conn::AsyncHandler;
-use tokio::sync::{
-    mpsc::{Receiver, Sender},
-    Mutex,
-};
-use transport::transport::Transport;
+use tokio::sync::mpsc::Sender;
 
-type ConnectionMap = HashMap<String, Sender<Vec<u8>>>;
+use anyhow::{Error, Result};
+use std::result::Result::Ok;
 
+use crate::headers::{build_host_frame, SwarmMpscTxFlag};
+
+#[derive(Debug)]
 pub struct Swarm {
-    pub transport: Transport,
-    pub upgrader: ConnUpgrader,
-    pub connections: Arc<Mutex<ConnectionMap>>,
-    pub handlers: HashMap<String, AsyncHandler>,
-    pub host_mpsc_rx: Receiver<Vec<u8>>,
+    pub swarm_mpsc_tx: Sender<Vec<u8>>,
 }
 
-// get_peer_id
-// set_stream_handler
-// get_connections
-// get_total_connections
-// dial_peer
-// upgrade_outbound
-// upgrade_inbound
-// new_stream
-// listen
-// close
-// close_peer
-// add_conn
-// notifications/notifiee all
-impl Swarm {
-    pub async fn new(
-        transport_opt: &str,
-        listen_addr: &mut Multiaddr,
-        handlers: HashMap<String, AsyncHandler>,
-        host_mpsc_rx: Receiver<Vec<u8>>,
-    ) -> Result<Self> {
-        let transport = Transport::new(transport_opt, listen_addr).await.unwrap();
-
-        Ok(Swarm {
-            transport,
-            upgrader: ConnUpgrader::new(),
-            connections: Arc::new(Mutex::new(HashMap::new())),
-            handlers,
-            host_mpsc_rx,
-        })
+#[async_trait]
+impl ISwarm for Swarm {
+    async fn connect(&self, maddr: &Multiaddr) -> Result<()> {
+        let frame = build_host_frame(SwarmMpscTxFlag::Connect, maddr.to_string(), None);
+        self.write(frame).await.unwrap();
+        Ok(())
     }
 
-    pub async fn initiate(&self) -> Result<()> {
+    async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()> {
+        let frame = build_host_frame(
+            SwarmMpscTxFlag::NewStream,
+            maddr.to_string(),
+            Some(protocols),
+        );
+        self.write(frame).await.unwrap();
+        Ok(())
+    }
+
+    async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
+        let frame = build_host_frame(SwarmMpscTxFlag::Disconnect, peer_id.to_string(), None);
+        self.write(frame).await.unwrap();
+        Ok(())
+    }
+
+    async fn write(&self, notification: Vec<u8>) -> Result<()> {
+        if let Err(e) = self.swarm_mpsc_tx.send(notification).await {
+            return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
+        }
+
         Ok(())
     }
 }

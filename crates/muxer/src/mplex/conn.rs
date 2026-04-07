@@ -1,11 +1,10 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use identity::peer::PeerInfo;
+use identity::traits::core::ISwarm;
 use identity::traits::muxer::IMuxedStream;
-use identity::traits::{
-    core::{INode, IRawConnection},
-    muxer::IMuxedConn,
-};
+use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
+use tokio::sync::Mutex;
 
 use std::collections::VecDeque;
 use std::future::Future;
@@ -32,7 +31,7 @@ where
     pub is_initiator: bool,
     pub streams: HashMap<u32, Sender<Vec<u8>>>,
     _stream_counter: u32,
-    handlers: HashMap<String, AsyncHandler>,
+    handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
     pub mpsc_tx: Sender<Vec<u8>>,
     pub mpsc_rx: Receiver<Vec<u8>>,
     pub global_event_tx: Sender<Vec<u8>>,
@@ -46,7 +45,7 @@ where
         raw_conn: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         mpsc_tx: Sender<Vec<u8>>,
         mpsc_rx: Receiver<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
@@ -173,7 +172,7 @@ where
     async fn conn_handler(
         &mut self,
         peer_id: &str,
-        host_mpsc_tx: Arc<dyn INode + Send + Sync>,
+        swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync>,
     ) -> Result<()> {
         let mut write_queue = VecDeque::<Vec<u8>>::new();
 
@@ -205,7 +204,7 @@ where
             }
         }
 
-        host_mpsc_tx.on_disconnect(peer_id).await.unwrap();
+        swarm_mpsc_tx.on_disconnect(peer_id).await.unwrap();
 
         Ok(())
     }

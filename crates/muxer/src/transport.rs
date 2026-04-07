@@ -1,11 +1,14 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Error, Result};
 use identity::peer::PeerInfo;
-use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
+use identity::traits::core::IRawConnection;
 use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::Mutex;
 
-use crate::mplex::conn::{AsyncHandler, MplexConn, MPLEX};
+use crate::conn::MuxedConn;
+use crate::mplex::conn::{AsyncHandler, MPLEX};
 
 pub const MULTISELECT_CONNECT: &str = "mutilselect/0.0.1";
 
@@ -36,11 +39,11 @@ impl MuxerTransport {
         stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
-    ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
+    ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
-        T: IRawConnection + Send + Sync,
+        T: IRawConnection + Send + Sync + 'static,
     {
         Ok(self
             .handshake(stream, is_initiator, remote_peer, handlers, global_event_tx)
@@ -53,11 +56,11 @@ impl MuxerTransport {
         mut stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
-    ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
+    ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
-        T: IRawConnection + Send + Sync,
+        T: IRawConnection + Send + Sync + 'static,
     {
         // Select on the protocol to use
         // TODO: Do this properly: muxer-opts priority
@@ -70,18 +73,21 @@ impl MuxerTransport {
             .await
             .unwrap();
 
-        let (muxed_conn_mpsc_tx, muxed_conn_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let muxed_conn = MplexConn::new(
+        let (muxed_mpsc_tx, muxed_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+
+        let muxed_conn = MuxedConn::new(
+            "mplex",
             stream,
             is_initiator,
             remote_peer,
             handlers,
-            muxed_conn_mpsc_tx.clone(),
-            muxed_conn_mpsc_rx,
+            muxed_mpsc_rx,
+            muxed_mpsc_tx.clone(),
             global_event_tx,
-        );
+        )
+        .unwrap();
 
-        Ok((muxed_conn, muxed_conn_mpsc_tx))
+        Ok((muxed_conn, muxed_mpsc_tx))
     }
 
     async fn try_select<T>(&self, stream: &mut T, proto: &str, is_initiator: bool) -> Result<()>

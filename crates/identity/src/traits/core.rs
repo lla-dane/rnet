@@ -6,7 +6,7 @@ use crate::multiaddr::Multiaddr;
 /// Transport stream have to implement this trait
 /// i.e `TcpStream` `UdpStream` `QuicStream`
 #[async_trait]
-pub trait IReadWriteClose {
+pub trait IReadWriteClose: Send + Sync {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()>;
     async fn recv_msg(&mut self) -> Result<Vec<u8>>;
@@ -34,6 +34,13 @@ pub trait INode {
     async fn write(&self, notification: Vec<u8>) -> Result<()>;
 }
 
+#[async_trait]
+pub trait ISwarm {
+    async fn connect(&self, maddr: &Multiaddr) -> Result<()>;
+    async fn new_stream(&self, maddr: &str, protocols: Vec<String>) -> Result<()>;
+    async fn on_disconnect(&self, peer_id: &str) -> Result<()>;
+    async fn write(&self, notification: Vec<u8>) -> Result<()>;
+}
 #[async_trait]
 pub trait IMultistream<T, W, X> {
     async fn handshake(&self, local_peer_info: &X, stream: T, is_intitiator: bool) -> Result<W>;

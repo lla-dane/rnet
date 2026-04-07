@@ -1,18 +1,19 @@
 use async_trait::async_trait;
 use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr};
 
-use tokio::sync::mpsc::Sender;
+use muxer::mplex::conn::AsyncHandler;
+use tokio::sync::{mpsc::Sender, Mutex};
 
 use anyhow::{Error, Result};
 use identity::traits::core::INode;
-use std::result::Result::Ok;
+use std::{collections::HashMap, result::Result::Ok, sync::Arc};
 
 use crate::headers::{build_host_frame, HostMpscTxFlag};
 
-#[derive(Debug)]
 pub struct Node {
     pub key_pair: RsaKeyPair,
-    pub host_mpsc_tx: Sender<Vec<u8>>,
+    pub mpsc_tx: Sender<Vec<u8>>,
+    pub handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
 }
 
 #[async_trait]
@@ -40,9 +41,18 @@ impl INode for Node {
     }
 
     async fn write(&self, notification: Vec<u8>) -> Result<()> {
-        if let Err(e) = self.host_mpsc_tx.send(notification).await {
+        if let Err(e) = self.mpsc_tx.send(notification).await {
             return Err(Error::msg(format!("mpsc-receiver dropped: {}", e)));
         }
+
+        Ok(())
+    }
+}
+
+impl Node {
+    pub async fn set_stream_handler(&self, protocol: &str, handler: AsyncHandler) -> Result<()> {
+        let mut handler_registry = self.handlers.lock().await;
+        handler_registry.insert(protocol.to_string(), handler);
 
         Ok(())
     }
