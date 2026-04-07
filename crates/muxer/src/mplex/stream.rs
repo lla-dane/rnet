@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Error, Ok, Result};
 use async_trait::async_trait;
 use identity::peer::PeerInfo;
 use identity::traits::muxer::IMuxedStream;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{
+    mpsc::{Receiver, Sender},
+    Mutex,
+};
 
 use crate::mplex::{
     conn::AsyncHandler,
@@ -17,7 +20,7 @@ pub struct MplexStream {
     pub stream_id: u32,
     pub is_initiator: bool,
     pub remote_peer_info: PeerInfo,
-    pub handlers: HashMap<String, AsyncHandler>,
+    handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
     pub global_event_tx: Sender<Vec<u8>>,
 }
 
@@ -28,7 +31,7 @@ impl MplexStream {
         stream_id: u32,
         is_initiator: bool,
         remote_peer_info: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> MplexStream {
         MplexStream {
@@ -70,12 +73,14 @@ impl IMuxedStream for MplexStream {
     async fn handle_conn(mut self, proto: Option<Vec<u8>>) -> Result<()> {
         match self.negotiate(proto).await {
             Some(protocol) => {
-                let handler = self
-                    .handlers
-                    .get(&protocol)
-                    .cloned()
-                    .ok_or_else(|| Error::msg("Protocol not found"))
-                    .unwrap();
+                let handler = {
+                    let handler_registry = self.handlers.lock().await;
+                    handler_registry
+                        .get(&protocol)
+                        .cloned()
+                        .ok_or_else(|| Error::msg("Protocol not found"))
+                        .unwrap()
+                };
 
                 // match protocol.as_str() {
                 //     FLOODSUB => println!("floodsub here osdbgfi"),
@@ -110,7 +115,10 @@ impl IMuxedStream for MplexStream {
                 let payload = self.read().await.unwrap();
                 let protocol = String::from_utf8(payload.clone()).unwrap();
 
-                let protocols: Vec<String> = self.handlers.keys().cloned().collect();
+                let protocols: Vec<String> = {
+                    let handler_registry = self.handlers.lock().await;
+                    handler_registry.keys().cloned().collect()
+                };
 
                 if !protocols.contains(&protocol) {
                     return None;

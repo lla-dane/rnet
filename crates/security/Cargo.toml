@@ -13,5 +13,4 @@ chacha20poly1305 = { workspace = true }
 bincode = { workspace = true }
 hex = { workspace = true }
 
-transport = { path = "../transport" }
 identity = { path = "../identity" }

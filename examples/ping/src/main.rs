@@ -60,7 +60,8 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
-    let (mut host, host_tx, _global_rx) = NodeInner::new(&mut listen_addr, vec![]).await.unwrap();
+    let (host_mpsc_tx, global_rx, local_peer_info) =
+        NodeInner::new(&mut listen_addr, vec![]).await.unwrap();
 
     let mut mode = "server".to_string();
     let mut destination = "";
@@ -69,33 +70,26 @@ async fn main() -> Result<()> {
         destination = &args[1];
     }
 
-    let peer_data = host.peerstore.lock().await.clone();
-
     let handler: AsyncHandler =
         Arc::new(|mut stream: MplexStream| Box::pin(async move { handle_ping(&mut stream).await }));
-    host.set_stream_handler(IPFS_PING, handler).unwrap();
-
-    let handle = tokio::spawn(async move {
-        host.run().await.unwrap();
-    });
+    host_mpsc_tx
+        .set_stream_handler(IPFS_PING, handler)
+        .await
+        .unwrap();
 
     if mode == "server" {
         info!(
             "Run in new terminal: \ncargo run --bin ping --release {:?}",
-            peer_data.peer_info.listen_addr.to_string()
+            local_peer_info.listen_addr.to_string()
         );
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
         // host_tx.connect(&multiaddr).await?;
 
-        host_tx
+        host_mpsc_tx
             .new_stream(&multiaddr.to_string(), vec![IPFS_PING.to_string()])
             .await
             .unwrap();
-    }
-
-    if let (Err(e),) = tokio::join!(handle) {
-        return Err(e.into());
     }
 
     Ok(())

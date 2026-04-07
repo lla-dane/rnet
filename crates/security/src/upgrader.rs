@@ -21,10 +21,11 @@ impl SecurityUpgrader {
         }
     }
 
-    pub async fn update<T>(&self, stream: T, is_initiator: bool) -> Result<SecureConn<T>>
-    where
-        T: IReadWriteClose + Send + Sync,
-    {
+    pub async fn update(
+        &self,
+        stream: Box<dyn IReadWriteClose + Send + Sync + 'static>,
+        is_initiator: bool,
+    ) -> Result<SecureConn> {
         Ok(self
             .tranport
             .secure_conn(stream, is_initiator)

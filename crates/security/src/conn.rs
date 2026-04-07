@@ -1,35 +1,25 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 
-use chacha20poly1305::ChaCha20Poly1305;
 use identity::traits::{core::IReadWriteClose, security::ISecuredConn};
 
 use crate::ISecureCipher;
 
 pub const NONCE_LEN: usize = 12;
 
-pub struct SecureConn<T>
-where
-    T: IReadWriteClose,
-{
-    cipher: ChaCha20Poly1305,
-    stream: T,
+pub struct SecureConn {
+    cipher: Box<dyn ISecureCipher>,
+    stream: Box<dyn IReadWriteClose>,
 }
 
-impl<T> SecureConn<T>
-where
-    T: IReadWriteClose,
-{
-    pub fn new(cipher: ChaCha20Poly1305, stream: T) -> Self {
+impl SecureConn {
+    pub fn new(cipher: Box<dyn ISecureCipher>, stream: Box<dyn IReadWriteClose>) -> Self {
         Self { cipher, stream }
     }
 }
 
 #[async_trait]
-impl<T> ISecuredConn for SecureConn<T>
-where
-    T: IReadWriteClose + Send,
-{
+impl ISecuredConn for SecureConn {
     async fn read(&mut self) -> Result<Vec<u8>> {
         // Receive the msg
         // separate the nonce - 12 bytes

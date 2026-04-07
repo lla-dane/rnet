@@ -1,21 +1,15 @@
-use identity::{
-    keys::rsa::RsaKeyPair,
-    multiaddr::{Multiaddr, Protocol},
-};
+use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr, peer::PeerInfo, traits::core::ISwarm};
 
-use multistream::multiselect::Multiselect;
-use muxer::{
-    mplex::{
-        conn::AsyncHandler,
-        headers::{build_frame, MuxedStreamFlag},
-    },
-    transport::MuxerTransport,
+use muxer::mplex::{
+    conn::AsyncHandler,
+    headers::{build_frame, MuxedStreamFlag},
 };
-use security::{conn::SecureConn, transport::SecureTransport};
+use security::conn::SecureConn;
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
+use swarm::{inner::SwarmInner, swarm::Swarm};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
@@ -23,10 +17,9 @@ use tokio::sync::{
 use transport::{raw_conn::RawConnection, tcp::transport::TcpTransport};
 
 use anyhow::Result;
-use identity::peer::{PeerData, PeerInfo};
+use identity::peer::PeerData;
 use identity::traits::{
     core::{IMultistream, IReadWriteClose},
-    muxer::IMuxedConn,
     transport::ITransport,
 };
 use std::result::Result::Ok;
@@ -35,7 +28,7 @@ use tracing::{debug, info, warn};
 use crate::{
     headers::{process_host_frame, HostMpscTxFlag},
     node::Node,
-    protocol::{InnerProtocol, InnerProtocolOpt},
+    protocol::InnerProtocolOpt,
 };
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
@@ -50,24 +43,16 @@ const INTERNAL: [u8; 16] = *b"internal-payload";
 
 // Happy exams !!
 pub struct NodeInner {
-    pub transport: TcpTransport,
     pub key_pair: RsaKeyPair,
     pub peerstore: Arc<Mutex<PeerData>>,
-    pub connections: Arc<Mutex<HashMap<String, Sender<Vec<u8>>>>>,
-    pub stream_handlers: HashMap<String, String>,
-    pub secure_transport: SecureTransport,
-    pub muxer_transport: MuxerTransport,
-    pub multiselect: Multiselect,
-    pub handlers: HashMap<String, AsyncHandler>,
-    pub host_mpsc_tx: Arc<Node>,
-    pub host_mpsc_rx: Receiver<Vec<u8>>,
+    pub handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+
+    pub node_mpsc_rx: Receiver<Vec<u8>>,
+    pub swarm_mpsc_tx: Arc<Swarm>,
     pub global_event_tx: Sender<Vec<u8>>,
-    pub protocols: Vec<InnerProtocol>,
 }
+
 /// new
-/// run
-/// connect
-/// new_stream
 /// get_peer_id
 /// get_addrs
 /// get_pubkey
@@ -82,85 +67,67 @@ impl NodeInner {
     pub async fn new(
         listen_addr: &mut Multiaddr,
         _protocol_opt: Vec<InnerProtocolOpt>,
-    ) -> Result<(Self, Arc<Node>, Receiver<Vec<u8>>)> {
-        let listener = TcpTransport::listen(listen_addr).await.unwrap();
-        let local_addr = listener.get_local_addr().unwrap();
-        let parts: Vec<&str> = local_addr.split(':').collect();
+    ) -> Result<(Arc<Node>, Receiver<Vec<u8>>, PeerInfo)> {
+        // generate rsa-keypair
+        // handlers
+        // create mpsc channels
+        // create/initiate swarm
 
-        // ------ LISTEN-ADDR--------
+        // keypair/handlers generate
         debug!("Generating RSA keypair");
         let keypair = RsaKeyPair::generate().unwrap();
         let peer_id = keypair.peer_id();
+        let handlers = Arc::new(Mutex::new(HashMap::new()));
 
-        listen_addr
-            .replace_value_for_protocol("tcp", parts[1])
-            .unwrap();
-
-        listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
-
-        // ---------------------------
-
-        info!("Host listening on: {}", listen_addr.to_string());
-        let (host_mpsc_tx, host_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+        // mpsc channels
         let (global_event_tx, global_event_rx) = mpsc::channel::<Vec<u8>>(100);
-
-        let host_tx = Arc::new(Node {
-            host_mpsc_tx,
+        let (mpsc_tx, node_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+        let node_mpsc_tx = Arc::new(Node {
+            mpsc_tx,
             key_pair: keypair.clone(),
+            handlers: handlers.clone(),
         });
-        Ok((
-            NodeInner {
-                transport: listener,
-                key_pair: keypair,
-                peerstore: Arc::new(Mutex::new(PeerData {
-                    peer_info: PeerInfo {
-                        peer_id,
-                        listen_addr: listen_addr.clone().to_string(),
-                    },
-                    peer_store: HashMap::new(),
-                })),
-                connections: Arc::new(Mutex::new(HashMap::new())),
-                stream_handlers: HashMap::new(),
-                secure_transport: SecureTransport::new(),
-                muxer_transport: MuxerTransport::new(),
-                multiselect: Multiselect {},
-                handlers: HashMap::new(),
-                host_mpsc_tx: host_tx.clone(),
-                host_mpsc_rx,
-                global_event_tx,
-                protocols: vec![],
-            },
-            host_tx,
-            global_event_rx,
-        ))
+
+        // swarm/local_peer_info
+        let (swarm_mpsc_tx, peerstore) = SwarmInner::new(
+            "tcp",
+            listen_addr,
+            peer_id.clone(),
+            handlers.clone(),
+            global_event_tx.clone(),
+        )
+        .await
+        .unwrap();
+        let local_peer_info = {
+            let peer_data = peerstore.lock().await;
+            peer_data.peer_info.clone()
+        };
+
+        info!("Node listening on: {}", listen_addr.to_string());
+
+        let node_inner = NodeInner {
+            key_pair: keypair,
+            peerstore,
+            handlers,
+            node_mpsc_rx,
+            swarm_mpsc_tx,
+            global_event_tx,
+        };
+
+        tokio::spawn(async move {
+            node_inner.run().await.unwrap();
+        });
+
+        Ok((node_mpsc_tx, global_event_rx, local_peer_info))
     }
 
-    async fn _execute_protocols(&self, protocol_opt: Vec<InnerProtocolOpt>) -> Result<()> {
-        for opt in protocol_opt {
-            match opt {
-                InnerProtocolOpt::Floodsub => {}
-                InnerProtocolOpt::Ping => {}
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn set_stream_handler(&mut self, protocol: &str, handler: AsyncHandler) -> Result<()> {
-        self.handlers.insert(protocol.to_string(), handler);
-        Ok(())
-    }
-
-    pub async fn run(&mut self) -> Result<()> {
+    // migrate to swarm
+    pub async fn run(mut self) -> Result<()> {
         let mut notification = VecDeque::<Vec<u8>>::new();
 
         loop {
             tokio::select! {
-                Ok((stream, _addr)) = self.transport.accept() => {
-                    self.conn_handler(stream, false).await.unwrap();
-                }
-
-                Some(event) = self.host_mpsc_rx.recv() => {
+                Some(event) = self.node_mpsc_rx.recv() => {
                     notification.push_back(event);
                 }
 
@@ -173,152 +140,34 @@ impl NodeInner {
 
                         HostMpscTxFlag::Connect => {
                             let maddr = Multiaddr::new(&str_pld).unwrap();
-                            self.connect(&maddr).await.unwrap();
+                            self.swarm_mpsc_tx.connect(&maddr).await.unwrap();
                         },
 
                         HostMpscTxFlag::NewStream => {
-                            let maadr = Multiaddr::new(&str_pld).unwrap();
+                            let maadr = Multiaddr::new(&str_pld).unwrap().to_string();
                             let protocols = opt_vec_pld.unwrap();
-                            self.new_stream(&maadr, protocols).await;
+                            self.swarm_mpsc_tx.new_stream(&maadr, protocols).await.unwrap();
                         },
 
                         HostMpscTxFlag::Disconnect => {
                             let peer_id = &str_pld;
-                            self.on_disconnect(peer_id).await.unwrap();
+                            self.swarm_mpsc_tx.on_disconnect(peer_id).await.unwrap();
                         },
                     }
                 }
-
             }
         }
 
         // TODO: ERROR HANDLING
     }
 
-    pub async fn connect(&self, addr: &Multiaddr) -> Result<()> {
-        let remote_peer_id = addr.value_for_protocol("p2p").unwrap();
-        {
-            let connections = self.connections.lock().await;
-            if connections.contains_key(&remote_peer_id) {
-                warn!("Peer already connected: {}", remote_peer_id);
-                return Ok(());
+    async fn _execute_protocols(&self, protocol_opt: Vec<InnerProtocolOpt>) -> Result<()> {
+        for opt in protocol_opt {
+            match opt {
+                InnerProtocolOpt::Floodsub => {}
+                InnerProtocolOpt::Ping => {}
             }
         }
-
-        // TODO: Set up a unified transport-opt here
-        let stream = TcpTransport::dial(addr).await?;
-        self.conn_handler(stream, true).await.unwrap();
-
-        Ok(())
-    }
-
-    pub async fn new_stream(&self, maddr: &Multiaddr, protocols: Vec<String>) {
-        let peer_id = maddr.value_for_protocol("p2p").unwrap();
-        if !self.is_peer_connected(&peer_id).await {
-            info!("Making a connection first: {}", peer_id);
-            self.connect(maddr).await.unwrap();
-        }
-        let mut connections = self.connections.lock().await;
-
-        let muxed_conn_mpsc_tx = connections
-            .get_mut(&peer_id)
-            .ok_or_else(|| anyhow::anyhow!("No such peer"))
-            .expect("Make a connection first")
-            .clone();
-
-        // INITIALIZE THE NEW-STREAM HEADER
-        let mut new_stream_frame =
-            build_frame(0, MuxedStreamFlag::NewStream, protocols[0].as_bytes());
-        new_stream_frame.splice(0..0, INTERNAL);
-        muxed_conn_mpsc_tx.send(new_stream_frame).await.unwrap();
-    }
-
-    pub async fn is_peer_connected(&self, peer_id: &str) -> bool {
-        let is_connected = {
-            let connections = self.connections.lock().await;
-            connections.contains_key(peer_id)
-        };
-
-        is_connected
-    }
-
-    pub async fn conn_handler<T>(&self, stream: T, is_initiator: bool) -> Result<()>
-    where
-        T: IReadWriteClose + Send + Sync + 'static,
-    {
-        let local_peer_info = {
-            let data = self.peerstore.lock().await;
-            data.peer_info.clone()
-        };
-
-        // security upgrade
-        // Identify \/
-        // stream_multiplexer upgrade
-        // Active protocol negotiation
-
-        // -------SECURITY-------
-        let secured_conn = self
-            .secure_transport
-            .secure_conn(stream, is_initiator)
-            .await
-            .unwrap();
-
-        // -------IDENTIFY-------
-        let raw_conn: RawConnection<SecureConn<T>> = self
-            .multiselect
-            .handshake(&local_peer_info, secured_conn, is_initiator)
-            .await
-            .unwrap();
-
-        // ------TODO:-RUN-STREAM-MUXER-UPDATE-----
-
-        let remote_peer = raw_conn.peer_info();
-        info!("New peer connected: {}", remote_peer.peer_id);
-
-        // -------MUXER-UPDATE-----
-        let (mut muxed_conn, muxed_conn_mpsc_tx) = self
-            .muxer_transport
-            .mux_conn(
-                raw_conn,
-                is_initiator,
-                remote_peer.clone(),
-                self.handlers.clone(),
-                self.global_event_tx.clone(),
-            )
-            .await
-            .unwrap();
-
-        // ----UPDATE-PEER-STORE----
-        {
-            let mut peerstore = self.peerstore.lock().await;
-            peerstore
-                .peer_store
-                .insert(remote_peer.peer_id.clone(), remote_peer.clone());
-
-            let mut connections = self.connections.lock().await;
-            connections.insert(remote_peer.peer_id.clone(), muxed_conn_mpsc_tx.clone());
-        }
-
-        //----SPAWN-MUXED-CONN-HANDLER----
-        let host_mpsc_tx = self.host_mpsc_tx.clone();
-
-        tokio::spawn(async move {
-            muxed_conn
-                .conn_handler(remote_peer.peer_id.as_str(), host_mpsc_tx)
-                .await
-                .unwrap();
-        });
-
-        Ok(())
-    }
-
-    async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
-        let mut peerstore = self.peerstore.lock().await;
-        peerstore.peer_store.remove(peer_id);
-
-        let mut connections = self.connections.lock().await;
-        connections.remove(peer_id);
-        warn!("Peer disconnected: {}", peer_id);
 
         Ok(())
     }

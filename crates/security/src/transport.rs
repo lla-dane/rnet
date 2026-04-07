@@ -28,17 +28,19 @@ impl SecureTransport {
         SecureTransport { sec_opts }
     }
 
-    pub async fn secure_conn<T>(&self, stream: T, is_initiator: bool) -> Result<SecureConn<T>>
-    where
-        T: IReadWriteClose,
-    {
+    pub async fn secure_conn(
+        &self,
+        stream: Box<dyn IReadWriteClose + 'static>,
+        is_initiator: bool,
+    ) -> Result<SecureConn> {
         Ok(self.handshake(stream, is_initiator).await.unwrap())
     }
 
-    pub async fn handshake<T>(&self, mut stream: T, is_initiator: bool) -> Result<SecureConn<T>>
-    where
-        T: IReadWriteClose,
-    {
+    pub async fn handshake(
+        &self,
+        mut stream: Box<dyn IReadWriteClose + 'static>,
+        is_initiator: bool,
+    ) -> Result<SecureConn> {
         // Select on security transport
         // Via the security transport, conduct key exchange
         // TODO: Do this property as per sec-opts priority
@@ -59,10 +61,12 @@ impl SecureTransport {
         Ok(secured_conn)
     }
 
-    async fn try_select<T>(&self, stream: &mut T, protocol: &str, is_initiator: bool) -> Result<()>
-    where
-        T: IReadWriteClose,
-    {
+    async fn try_select(
+        &self,
+        stream: &mut Box<dyn IReadWriteClose>,
+        protocol: &str,
+        is_initiator: bool,
+    ) -> Result<()> {
         match is_initiator {
             true => {
                 let proto_bytes = bincode::serialize(&protocol)?;

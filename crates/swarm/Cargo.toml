@@ -16,7 +16,7 @@ x25519-dalek = { workspace = true }
 chacha20poly1305 = { workspace = true }
 
 identity = { path = "../identity" }
-# multistream = { path = "../multistream" }
+multistream = { path = "../multistream" }
 transport = { path = "../transport" }
 security = { path = "../security" }
 muxer = { path = "../muxer" }

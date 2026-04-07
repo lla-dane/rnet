@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use identity::peer::PeerInfo;
-use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
+use identity::traits::core::IRawConnection;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 
+use crate::conn::MuxedConn;
 use crate::{mplex::conn::AsyncHandler, transport::MuxerTransport};
 
 pub struct MuxerUpgrader {
@@ -29,11 +32,11 @@ impl MuxerUpgrader {
         stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: HashMap<String, AsyncHandler>,
+        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
         global_event_tx: Sender<Vec<u8>>,
-    ) -> Result<(impl IMuxedConn, Sender<Vec<u8>>)>
+    ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
-        T: IRawConnection + Send + Sync,
+        T: IRawConnection + Send + Sync + 'static,
     {
         Ok(self
             .transport
