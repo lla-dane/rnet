@@ -1,10 +1,8 @@
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 
-use identity::traits::{core::IReadWriteClose, security::ISecuredConn};
-use tracing::warn;
-
 use crate::ISecureCipher;
+use identity::traits::{core::IReadWriteClose, security::ISecuredConn};
 
 pub const NONCE_LEN: usize = 12;
 
