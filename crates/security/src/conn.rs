@@ -2,6 +2,7 @@ use anyhow::{Error, Result};
 use async_trait::async_trait;
 
 use identity::traits::{core::IReadWriteClose, security::ISecuredConn};
+use tracing::warn;
 
 use crate::ISecureCipher;
 
@@ -25,6 +26,7 @@ impl ISecuredConn for SecureConn {
         // separate the nonce - 12 bytes
         // decrypt the msg
         // pass on the vec<u8>
+
         let bytes = self.stream.recv_msg().await?;
         if bytes.len() < NONCE_LEN {
             return Err(Error::msg("message too short"));

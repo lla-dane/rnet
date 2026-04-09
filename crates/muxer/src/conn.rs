@@ -7,7 +7,8 @@ use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 
-use crate::mplex::conn::{AsyncHandler, MplexConn};
+use crate::mplex::conn::MplexConn;
+use crate::upgrader::ProtocolHanldler;
 
 // mplex-conn: IMuxedConn
 // handle_incoming
@@ -38,7 +39,7 @@ impl MuxedConn {
         raw_conn: W,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         muxed_mpsc_rx: Receiver<Vec<u8>>,
         muxed_mpsc_tx: Sender<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
@@ -50,7 +51,6 @@ impl MuxedConn {
             "mplex" => {
                 let mplex_conn = MplexConn::new(
                     raw_conn,
-                    is_initiator,
                     remote_peer.clone(),
                     handlers,
                     muxed_mpsc_tx.clone(),

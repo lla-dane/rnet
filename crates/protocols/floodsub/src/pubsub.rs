@@ -4,23 +4,27 @@ use std::{
 };
 
 use anyhow::Result;
-use identity::peer::PeerInfo;
+use async_trait::async_trait;
 use identity::traits::muxer::IMuxedStream;
+use identity::{peer::PeerInfo, traits::core::IProtocolHandler};
 use prost::Message as ProstMessage;
 use schema::floodsub::{rpc::SubOpts, Message, Rpc};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{
-    mpsc::{self, Sender},
+    mpsc::{self, Receiver, Sender},
     Mutex,
 };
 use tracing::{debug, error, warn};
 
 use crate::{
-    cleanup_msg_cache, handle_floodsub_api, seqno_to_unix_tx,
-    subscription::{build_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI},
+    cache::{cleanup_msg_cache, get_seqno, seqno_to_unix_tx},
+    subscription::{
+        build_floodsub_api_frame, process_floodsub_api_frame, SubAPIMpscFlag, SubscriptionAPI,
+    },
 };
 
 pub type LastSeenCache = HashMap<MessageKey, u64>;
+pub type FloodsubPayload = (Option<String>, Option<Vec<String>>, Option<Vec<u8>>);
 
 #[derive(Debug, Clone)]
 pub struct FloosubStore {
@@ -43,8 +47,62 @@ pub struct FloodSub {
     pub floodsub_store: Arc<Mutex<FloosubStore>>,
 }
 
+#[async_trait]
+impl IProtocolHandler for FloodSub {
+    async fn stream_handler(
+        &self,
+        mut stream: Box<dyn IMuxedStream + Send + Sync + 'static>,
+    ) -> Result<()> {
+        let peer_id = stream.get_peer_id();
+        let (floodsub_peer_mpsc_tx, mut floodsub_peer_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
+        let mut notification = VecDeque::<Vec<u8>>::new();
+
+        // We received a new peer here, so send a hello packet too,
+        // to notify them of our subscribed topics
+        self.handle_new_peer(floodsub_peer_mpsc_tx, peer_id.clone())
+            .await
+            .unwrap();
+
+        loop {
+            tokio::select! {
+
+                incoming = stream.read() => {
+                    match incoming {
+                        Ok(incoming) => {
+                            let rpc = Rpc::decode(&incoming[..]).expect("Decoding failed");
+                            self.handle_incoming(rpc, peer_id.clone()).await.unwrap();
+                        }
+                        Err(_) => {
+                            warn!("Floodsub dead peer");
+                            break;
+                        }
+                    }
+                }
+
+                Some(event) = floodsub_peer_mpsc_rx.recv() => {
+                    notification.push_back(event);
+                }
+
+                _ = async {}, if !notification.is_empty() => {
+                    let data = notification.pop_front().unwrap();
+                    if let Err(e) = stream.write(&data).await {
+                        error!("Error while writing in stream of peer: {}, {}", peer_id, e);
+                        break;
+                    }
+                }
+            }
+        }
+
+        let frame =
+            build_floodsub_api_frame(SubAPIMpscFlag::DeadPeers, None, Some(vec![peer_id]), None);
+        self.floodsub_mpsc_tx.send(frame).await.unwrap();
+
+        Ok(())
+    }
+}
+
 impl FloodSub {
-    pub async fn new(local_peer: &PeerInfo) -> Result<(Arc<Self>, Sender<Vec<u8>>)> {
+    pub async fn new(local_peer: &PeerInfo) -> Result<Arc<Self>> {
         let (floodsub_mpsc_tx, floodsub_mpsc_rx) = mpsc::channel::<Vec<u8>>(300);
         let last_seen_cache = Arc::new(Mutex::new(HashMap::new()));
         let local_peer_info = local_peer.clone();
@@ -66,10 +124,50 @@ impl FloodSub {
 
         let spawn_floodsub = floodsub.clone();
         tokio::spawn(async move {
-            handle_floodsub_api(spawn_floodsub, floodsub_mpsc_rx).await;
+            spawn_floodsub.handle_internal_api(floodsub_mpsc_rx).await;
         });
 
-        Ok((floodsub, floodsub_mpsc_tx))
+        Ok(floodsub)
+    }
+
+    pub async fn handle_internal_api(&self, mut floodsub_mpsc_rx: Receiver<Vec<u8>>) {
+        let mut notification = VecDeque::<Vec<u8>>::new();
+
+        loop {
+            tokio::select! {
+                Some(event) = floodsub_mpsc_rx.recv() => {
+                    notification.push_back(event);
+                }
+
+                _ = async {}, if !notification.is_empty() => {
+                    let frame = notification.pop_front().unwrap();
+
+                    let (flag, (_, opt_vec_pld, opt_data)): (SubAPIMpscFlag, FloodsubPayload) = process_floodsub_api_frame(frame).unwrap();
+                    match flag {
+                        SubAPIMpscFlag::DeadPeers => {
+                            self.handle_dead_peers(opt_vec_pld.unwrap())
+                                .await.unwrap();
+                        }
+                        SubAPIMpscFlag::Unsubscribe => {
+                            self.unsubscribe(opt_vec_pld.unwrap()).await.unwrap();
+                        }
+                        SubAPIMpscFlag::Publish => {
+                            let timestamp = get_seqno();
+
+                            let pub_msg = Message {
+                                from: Some(self.local_peer_info.clone().peer_id.as_bytes().to_vec()),
+                                data: opt_data,
+                                seqno: Some(timestamp),
+                                topic_ids: opt_vec_pld.unwrap(),
+                            };
+
+                            warn!("About to publish: floodsub");
+                            self.publish(self.local_peer_info.clone().peer_id, pub_msg).await.unwrap();
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub async fn handle_incoming(&self, rpc: Rpc, peer_id: String) -> Result<()> {
@@ -97,54 +195,6 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn stream_handler<T>(&self, mut stream: T) -> Result<()>
-    where
-        T: IMuxedStream,
-    {
-        let peer_id = stream.get_peer_id();
-        let (floodsub_peer_mpsc_tx, mut floodsub_peer_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let mut notification = VecDeque::<Vec<u8>>::new();
-
-        // We received a new peer here, so send a hello packet too,
-        // to notify them of our subscribed topics
-        self.handle_new_peer(floodsub_peer_mpsc_tx, peer_id.clone())
-            .await
-            .unwrap();
-
-        loop {
-            tokio::select! {
-
-                incoming = stream.read() => {
-                    match incoming {
-                        Ok(incoming) => {
-                            let rpc = Rpc::decode(&incoming[..]).expect("Decoding failed");
-                            self.handle_incoming(rpc, peer_id.clone()).await.unwrap();
-                        }
-                        Err(_) => {break;}
-                    }
-                }
-
-                Some(event) = floodsub_peer_mpsc_rx.recv() => {
-                    notification.push_back(event);
-                }
-
-                _ = async {}, if !notification.is_empty() => {
-                    let data = notification.pop_front().unwrap();
-                    if let Err(e) = stream.write(&data).await {
-                        error!("Error while writing in stream of peer: {}, {}", peer_id, e);
-                        break;
-                    }
-                }
-            }
-        }
-
-        let frame =
-            build_floodsub_api_frame(SubAPIMpscFlag::DeadPeers, None, Some(vec![peer_id]), None);
-        self.floodsub_mpsc_tx.send(frame).await.unwrap();
-
-        Ok(())
-    }
-
     pub async fn write_msg(&self, peer_id: String, rpc_msg: Rpc) -> Result<()> {
         let floodsub_peer_mpsc_tx = {
             let floodsub_store = self.floodsub_store.lock().await;
@@ -158,7 +208,7 @@ impl FloodSub {
         Ok(())
     }
 
-    pub async fn subscribe(&self, topic_id: String) -> Option<SubscriptionAPI> {
+    pub async fn subscribe(&self, topic_id: String) -> Result<()> {
         if self
             .get_subscribed_topics()
             .await
@@ -166,13 +216,13 @@ impl FloodSub {
             .contains(&topic_id)
         {
             warn!("Already subscribed to the topic: {}", topic_id);
-            return None;
+            return Ok(());
         }
 
         debug!("Subscribing to topic: {}", topic_id);
 
         let (topic_mpsc_tx, topic_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let sub_api = SubscriptionAPI::new(
+        let mut sub_api = SubscriptionAPI::new(
             topic_id.clone(),
             self.floodsub_mpsc_tx.clone(),
             topic_mpsc_rx,
@@ -192,8 +242,11 @@ impl FloodSub {
         });
 
         self.message_all_peers(sub_rpc).await.unwrap();
+        tokio::spawn(async move {
+            sub_api.receive_loop().await;
+        });
 
-        Some(sub_api)
+        Ok(())
     }
 
     pub async fn message_all_peers(&self, rpc: Rpc) -> Result<()> {

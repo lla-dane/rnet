@@ -1,11 +1,10 @@
-use floodsub::pubsub::FloodSub;
-use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr, peer::PeerInfo, traits::core::ISwarm};
-
-use muxer::mplex::{
-    conn::AsyncHandler,
-    headers::{build_frame, MuxedStreamFlag},
+use identity::{
+    keys::rsa::RsaKeyPair,
+    multiaddr::Multiaddr,
+    peer::PeerInfo,
+    traits::core::{IProtocolHandler, ISwarm},
 };
-use security::conn::SecureConn;
+
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -15,24 +14,17 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
-use transport::{raw_conn::RawConnection, tcp::transport::TcpTransport};
 
 use anyhow::Result;
 use identity::peer::PeerData;
-use identity::traits::{
-    core::{IMultistream, IReadWriteClose},
-    transport::ITransport,
-};
 use std::result::Result::Ok;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::{
     headers::{process_host_frame, HostMpscTxFlag},
     node::Node,
     protocol::InnerProtocolOpt,
 };
-
-const INTERNAL: [u8; 16] = *b"internal-payload";
 
 // TODO: After sometime:
 // Only one endpoint to connect with the whole rnet node: HostMpscTx
@@ -43,12 +35,16 @@ const INTERNAL: [u8; 16] = *b"internal-payload";
 // Fix the dependency tree
 
 // Happy exams !!
+pub type ProtocolHanldler = Box<Arc<dyn IProtocolHandler + Send + Sync + 'static>>;
+
 pub struct NodeInner {
     pub key_pair: RsaKeyPair,
     pub peerstore: Arc<Mutex<PeerData>>,
-    pub handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+    pub handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
 
     pub node_mpsc_rx: Receiver<Vec<u8>>,
+    pub node_mpsc_tx: Arc<Node>,
+
     pub swarm_mpsc_tx: Arc<Swarm>,
     pub global_event_tx: Sender<Vec<u8>>,
 }
@@ -67,8 +63,8 @@ pub struct NodeInner {
 impl NodeInner {
     pub async fn new(
         listen_addr: &mut Multiaddr,
-        _protocol_opt: Vec<InnerProtocolOpt>,
-    ) -> Result<(Arc<Node>, Receiver<Vec<u8>>, PeerInfo)> {
+        protocol_opt: Vec<InnerProtocolOpt>,
+    ) -> Result<(Arc<Node>, Receiver<Vec<u8>>)> {
         // generate rsa-keypair
         // handlers
         // create mpsc channels
@@ -83,11 +79,6 @@ impl NodeInner {
         // mpsc channels
         let (global_event_tx, global_event_rx) = mpsc::channel::<Vec<u8>>(100);
         let (mpsc_tx, node_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
-        let node_mpsc_tx = Arc::new(Node {
-            mpsc_tx,
-            key_pair: keypair.clone(),
-            handlers: handlers.clone(),
-        });
 
         // swarm/local_peer_info
         let (swarm_mpsc_tx, peerstore, local_peer_info) = SwarmInner::new(
@@ -100,6 +91,14 @@ impl NodeInner {
         .await
         .unwrap();
 
+        // Node client interface
+        let node_mpsc_tx = Arc::new(Node::new(
+            mpsc_tx,
+            keypair.clone(),
+            handlers.clone(),
+            local_peer_info.clone(),
+        ));
+
         info!("Node listening on: {}", listen_addr.to_string());
 
         let node_inner = NodeInner {
@@ -107,15 +106,21 @@ impl NodeInner {
             peerstore,
             handlers,
             node_mpsc_rx,
+            node_mpsc_tx: node_mpsc_tx.clone(),
             swarm_mpsc_tx,
             global_event_tx,
         };
+
+        node_inner
+            ._execute_protocols(protocol_opt, &local_peer_info)
+            .await
+            .unwrap();
 
         tokio::spawn(async move {
             node_inner.run().await.unwrap();
         });
 
-        Ok((node_mpsc_tx, global_event_rx, local_peer_info))
+        Ok((node_mpsc_tx, global_event_rx))
     }
 
     // migrate to swarm
@@ -163,17 +168,23 @@ impl NodeInner {
         protocol_opt: Vec<InnerProtocolOpt>,
         local_peer: &PeerInfo,
     ) -> Result<()> {
+        // This happens in impl Node
         for opt in protocol_opt {
             match opt {
                 InnerProtocolOpt::Floodsub => {
-                    let (floodsub, _) = FloodSub::new(local_peer).await.unwrap();
-                    
-                
+                    self.node_mpsc_tx
+                        .initiate_protocol(local_peer, opt)
+                        .await
+                        .unwrap();
                 }
-                InnerProtocolOpt::Ping => {}
+                InnerProtocolOpt::Ping => {
+                    self.node_mpsc_tx
+                        .initiate_protocol(local_peer, opt)
+                        .await
+                        .unwrap();
+                }
             }
         }
-
         Ok(())
     }
 }
