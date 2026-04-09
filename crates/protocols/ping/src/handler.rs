@@ -112,7 +112,7 @@ impl IProtocolHandler for Ping {
             true => {
                 let ping_count: u32 = {
                     let ping_guard = self.count.lock().await;
-                    *ping_guard as u32
+                    *ping_guard
                 };
 
                 self.handle_ping(&mut stream, Some(ping_count))
