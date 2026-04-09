@@ -61,6 +61,7 @@ pub struct NodeInner {
 /// get_live_peers
 /// is_peer_connected
 impl NodeInner {
+    #[allow(clippy::new_ret_no_self)]
     pub async fn new(
         listen_addr: &mut Multiaddr,
         protocol_opt: Vec<InnerProtocolOpt>,

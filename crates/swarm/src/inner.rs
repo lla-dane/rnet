@@ -60,6 +60,7 @@ pub struct SwarmInner {
 // add_conn
 // notifications/notifiee all
 impl SwarmInner {
+    #[allow(clippy::new_ret_no_self)]
     pub async fn new(
         transport_opt: &str,
         listen_addr: &mut Multiaddr,
