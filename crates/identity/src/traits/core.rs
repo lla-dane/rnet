@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::multiaddr::Multiaddr;
+use crate::{multiaddr::Multiaddr, traits::muxer::IMuxedStream};
 
 /// Transport stream have to implement this trait
 /// i.e `TcpStream` `UdpStream` `QuicStream`
@@ -53,4 +53,12 @@ pub trait IKeys<T> {
     fn public_key(&self) -> String;
     fn sign(&self, msg: &[u8]) -> Result<T>;
     fn verify(&self, msg: &[u8], sig: &T) -> bool;
+}
+
+#[async_trait]
+pub trait IProtocolHandler {
+    async fn stream_handler(
+        &self,
+        stream: Box<dyn IMuxedStream + Send + Sync + 'static>,
+    ) -> Result<()>;
 }

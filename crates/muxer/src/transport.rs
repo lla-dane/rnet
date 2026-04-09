@@ -8,7 +8,8 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::Mutex;
 
 use crate::conn::MuxedConn;
-use crate::mplex::conn::{AsyncHandler, MPLEX};
+use crate::mplex::conn::MPLEX;
+use crate::upgrader::ProtocolHanldler;
 
 pub const MULTISELECT_CONNECT: &str = "mutilselect/0.0.1";
 
@@ -39,7 +40,7 @@ impl MuxerTransport {
         stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where
@@ -56,7 +57,7 @@ impl MuxerTransport {
         mut stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where

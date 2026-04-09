@@ -15,9 +15,15 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::mplex::headers::{build_frame, process_header, MuxedStreamFlag};
 use crate::mplex::stream::MplexStream;
+use crate::upgrader::ProtocolHanldler;
 
-pub type AsyncHandler =
-    Arc<dyn Fn(MplexStream) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+pub type AsyncHandler = Arc<
+    dyn Fn(
+            Box<dyn IMuxedStream + Send + Sync + 'static>,
+        ) -> Pin<Box<dyn Future<Output = Result<()>> + Send>>
+        + Send
+        + Sync,
+>;
 
 const INTERNAL: [u8; 16] = *b"internal-payload";
 pub const MPLEX: &str = "rnet/mplex/0.0.1";
@@ -28,10 +34,9 @@ where
 {
     pub raw_conn: T,
     pub remote_peer_info: PeerInfo,
-    pub is_initiator: bool,
     pub streams: HashMap<u32, Sender<Vec<u8>>>,
     _stream_counter: u32,
-    handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+    handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub mpsc_tx: Sender<Vec<u8>>,
     pub mpsc_rx: Receiver<Vec<u8>>,
     pub global_event_tx: Sender<Vec<u8>>,
@@ -43,9 +48,8 @@ where
 {
     pub fn new(
         raw_conn: T,
-        is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         mpsc_tx: Sender<Vec<u8>>,
         mpsc_rx: Receiver<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
@@ -53,7 +57,6 @@ where
         MplexConn {
             raw_conn,
             remote_peer_info: remote_peer,
-            is_initiator,
             streams: HashMap::new(),
             _stream_counter: 0,
             handlers,
@@ -85,19 +88,26 @@ where
                 // Create a new stream
                 let (muxed_stream_mpsc_tx, muxed_stream_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
-                match self.is_initiator {
+                let mut is_initiator = false;
+                if stream_id == 0 {
+                    is_initiator = true;
+                }
+
+                match is_initiator {
                     // TODO: Do somthing to merge these 2 match cases
                     false => {
+                        self._stream_counter += 1;
                         let stream = MplexStream::new(
                             self.mpsc_tx.clone(),
                             muxed_stream_mpsc_rx,
-                            stream_id,
-                            self.is_initiator,
+                            self._stream_counter,
+                            is_initiator,
                             self.remote_peer_info.clone(),
                             self.handlers.clone(),
                             self.global_event_tx.clone(),
                         );
-                        self.streams.insert(stream_id, muxed_stream_mpsc_tx.clone());
+                        self.streams
+                            .insert(self._stream_counter, muxed_stream_mpsc_tx);
 
                         // SERVER HANDSHAKE PROCEDURE
                         tokio::spawn(async move {
@@ -110,13 +120,13 @@ where
                             self.mpsc_tx.clone(),
                             muxed_stream_mpsc_rx,
                             self._stream_counter,
-                            self.is_initiator,
+                            is_initiator,
                             self.remote_peer_info.clone(),
                             self.handlers.clone(),
                             self.global_event_tx.clone(),
                         );
                         self.streams
-                            .insert(self._stream_counter, muxed_stream_mpsc_tx.clone());
+                            .insert(self._stream_counter, muxed_stream_mpsc_tx);
 
                         // INITIATOR-FRAME -> SERVER
                         let initiator_frame = build_frame(

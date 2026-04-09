@@ -13,17 +13,14 @@ use identity::{
     multiaddr::{Multiaddr, Protocol},
     peer::{PeerData, PeerInfo},
     traits::{
-        core::{IMultistream, IRawConnection, IReadWriteClose, ISwarm},
+        core::{IMultistream, IProtocolHandler, IRawConnection, IReadWriteClose, ISwarm},
         security::ISecuredConn,
     },
 };
 use multistream::multiselect::Multiselect;
 use muxer::{
     conn::MuxedConn,
-    mplex::{
-        conn::AsyncHandler,
-        headers::{build_frame, MuxedStreamFlag},
-    },
+    mplex::headers::{build_frame, MuxedStreamFlag},
 };
 use security::conn::SecureConn;
 use tokio::sync::{
@@ -34,6 +31,8 @@ use tracing::{info, warn};
 use transport::{raw_conn::RawConnection, transport::Transport};
 
 type ConnectionMap = HashMap<String, Sender<Vec<u8>>>;
+pub type ProtocolHanldler = Box<Arc<dyn IProtocolHandler + Send + Sync + 'static>>;
+
 const INTERNAL: [u8; 16] = *b"internal-payload";
 
 pub struct SwarmInner {
@@ -42,7 +41,7 @@ pub struct SwarmInner {
     pub connections: Arc<Mutex<ConnectionMap>>,
     pub peerstore: Arc<Mutex<PeerData>>,
     pub multiselect: Multiselect,
-    handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+    handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync + 'static>,
     pub global_event_tx: Sender<Vec<u8>>,
 }
@@ -65,7 +64,7 @@ impl SwarmInner {
         transport_opt: &str,
         listen_addr: &mut Multiaddr,
         peer_id: String,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(Arc<Swarm>, Arc<Mutex<PeerData>>, PeerInfo)> {
         // create transport
@@ -226,7 +225,7 @@ impl SwarmInner {
     async fn new_stream(&self, maddr: &Multiaddr, protocols: Vec<String>) {
         let peer_id = maddr.value_for_protocol("p2p").unwrap();
         if !self.is_peer_connected(&peer_id).await {
-            info!("Making a connection first: {}", peer_id);
+            warn!("Making a connection first: {}", peer_id);
             self.connect(maddr).await.unwrap();
         }
 

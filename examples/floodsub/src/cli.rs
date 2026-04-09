@@ -1,22 +1,21 @@
 use anyhow::Result;
-use floodsub::{
-    pubsub::FloodSub,
-    subscription::{build_floodsub_api_frame, SubAPIMpscFlag},
-};
 use identity::multiaddr::Multiaddr;
-use identity::traits::core::INode;
+use identity::traits::{
+    core::INode,
+    protocols::{INodeFloodsubAPI, INodePingAPI},
+};
 use node::node::Node;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::io::{self, AsyncBufReadExt};
 
-use crate::{receiver_loop, FLOODSUB};
-
 const CLI_DELAY: Duration = Duration::from_nanos(1000);
+const FLOODSUB: &str = "rnet/floodsub/0.0.1";
 const COMMANDS: &[&str] = &[
     "help                       => print all the commands",
     "local                      => get local peer-info",
     "connect <maddr>            => connect with a new peer",
-    "new_stream <maddr>         => open a new floodsub stream with the peer",
+    "ping <count> <maddr>       => exchange ping with a peer",
+    "fsub <maddr>               => open a new floodsub stream with the peer",
     "join <topic>               => subscribe to a new-topic",
     "leave <topic>              => unsubscribe to a new-topic",
     "publish <topic> <msg>      => publish a msg to a topic",
@@ -31,7 +30,7 @@ fn print_commands() {
     }
 }
 
-async fn handle_cmd(line: &str, host_tx: &Arc<Node>, floodsub: &Arc<FloodSub>) -> Result<()> {
+async fn handle_cmd(line: &str, host_tx: &Arc<Node>) -> Result<()> {
     let mut parts = line.split_whitespace();
     let cmd = parts.next().unwrap();
 
@@ -41,7 +40,7 @@ async fn handle_cmd(line: &str, host_tx: &Arc<Node>, floodsub: &Arc<FloodSub>) -
         }
 
         "local" => {
-            let peer_info = floodsub.get_local().unwrap();
+            let peer_info = host_tx.get_local();
             println!("{}", peer_info.listen_addr);
         }
 
@@ -51,7 +50,13 @@ async fn handle_cmd(line: &str, host_tx: &Arc<Node>, floodsub: &Arc<FloodSub>) -
             tokio::time::sleep(Duration::from_millis(300)).await;
         }
 
-        "new_stream" => {
+        "ping" => {
+            let maddr = parts.next().unwrap();
+            let count: u32 = parts.next().unwrap().parse().unwrap();
+            host_tx.ping(Some(count), maddr).await.unwrap();
+        }
+
+        "fsub" => {
             let maddr = parts.next().unwrap();
             host_tx
                 .new_stream(maddr, vec![FLOODSUB.to_string()])
@@ -62,66 +67,33 @@ async fn handle_cmd(line: &str, host_tx: &Arc<Node>, floodsub: &Arc<FloodSub>) -
 
         "join" => {
             let topic = parts.next().unwrap().to_string();
-            let sub_api = floodsub.subscribe(topic).await.unwrap();
-            tokio::spawn(async move {
-                receiver_loop(sub_api).await;
-            });
+            host_tx.floodsub_subscribe(topic).await.unwrap();
         }
 
         "leave" => {
             let topic = parts.next().unwrap().to_string();
-            floodsub.unsubscribe(vec![topic]).await.unwrap();
+            host_tx.floodsub_unsubscribe(vec![topic]).await.unwrap();
         }
 
         "publish" => {
             let topic = parts.next().unwrap().to_string();
             let msg = parts.collect::<Vec<_>>().join(" ").as_bytes().to_vec();
 
-            let frame = build_floodsub_api_frame(
-                SubAPIMpscFlag::Publish,
-                None,
-                Some(vec![topic]),
-                Some(msg),
-            );
-
-            floodsub.floodsub_mpsc_tx.send(frame).await.unwrap();
+            host_tx.floodsub_publish(topic, msg).await.unwrap();
         }
 
-        "topics" => match floodsub.get_subscribed_topics().await {
-            Some(topics) => println!("{:?}", topics),
-            None => println!("None"),
-        },
+        "topics" => host_tx.floodsub_topics().await.unwrap(),
 
-        "peers" => match floodsub.get_connected_peers().await {
-            Some(peers) => {
-                for peer in peers {
-                    println!("{}", peer);
-                }
-            }
-            None => println!("None"),
-        },
+        "peers" => host_tx.floodsub_peers().await.unwrap(),
 
-        "mesh" => {
-            let mesh = floodsub.get_floodsub_mesh().await;
+        "mesh" => host_tx.floodsub_mesh().await.unwrap(),
 
-            if mesh.is_empty() {
-                println!("None");
-                return Ok(());
-            }
-
-            for (topic, peers) in mesh {
-                println!("[{}] => {:?}", topic, peers);
-            }
-        }
-
-        _ => {
-            println!("unknown command");
-        }
+        _ => println!("Unknown command"),
     }
     Ok(())
 }
 
-pub async fn cli_loop(host_tx: Arc<Node>, floodsub: Arc<FloodSub>) -> Result<()> {
+pub async fn cli_loop(host_tx: Arc<Node>) -> Result<()> {
     let stdin = io::BufReader::new(io::stdin());
     let mut lines = stdin.lines();
 
@@ -142,7 +114,7 @@ pub async fn cli_loop(host_tx: Arc<Node>, floodsub: Arc<FloodSub>) -> Result<()>
             continue;
         }
 
-        handle_cmd(line, &host_tx, &floodsub).await?;
+        handle_cmd(line, &host_tx).await?;
         tokio::time::sleep(CLI_DELAY).await;
     }
 

@@ -9,9 +9,9 @@ use tokio::sync::{
     Mutex,
 };
 
-use crate::mplex::{
-    conn::AsyncHandler,
-    headers::{build_frame, MuxedStreamFlag},
+use crate::{
+    mplex::headers::{build_frame, MuxedStreamFlag},
+    upgrader::ProtocolHanldler,
 };
 
 pub struct MplexStream {
@@ -20,7 +20,7 @@ pub struct MplexStream {
     pub stream_id: u32,
     pub is_initiator: bool,
     pub remote_peer_info: PeerInfo,
-    handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+    handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
     pub global_event_tx: Sender<Vec<u8>>,
 }
 
@@ -31,7 +31,7 @@ impl MplexStream {
         stream_id: u32,
         is_initiator: bool,
         remote_peer_info: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> MplexStream {
         MplexStream {
@@ -88,7 +88,8 @@ impl IMuxedStream for MplexStream {
                 //     _ => {}
                 // }
 
-                handler(self).await.unwrap();
+                // handler(Box::new(self)).await.unwrap();
+                handler.stream_handler(Box::new(self)).await.unwrap();
             }
             None => return Err(Error::msg("Protocol negotiation failed")),
         }

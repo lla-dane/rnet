@@ -1,7 +1,8 @@
 use anyhow::Result;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::debug;
 
-use crate::FloodsubPayload;
+use crate::pubsub::FloodsubPayload;
 
 #[derive(Debug)]
 pub struct SubscriptionAPI {
@@ -49,6 +50,25 @@ impl SubscriptionAPI {
 
     pub async fn recv(&mut self) -> Option<Vec<u8>> {
         self.topic_mpsc_rx.recv().await
+    }
+
+    pub async fn receive_loop(&mut self) {
+        let topic = self.topic_id.clone();
+        debug!("[{}]: Receiver loop started", topic);
+
+        // TODO: send global event from here
+        loop {
+            match self.recv().await {
+                Some(payload) => {
+                    let msg = String::from_utf8_lossy(&payload).to_string();
+                    println!("[{}]: {}", topic, msg);
+                }
+                None => {
+                    debug!("[{}]: Receiver loop ended", topic);
+                    break;
+                }
+            }
+        }
     }
 }
 

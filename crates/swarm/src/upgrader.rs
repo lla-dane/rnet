@@ -3,15 +3,14 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use identity::peer::PeerInfo;
-use identity::traits::{
-    core::{IRawConnection, IReadWriteClose},
-    muxer::IMuxedConn,
-};
+use identity::traits::core::{IRawConnection, IReadWriteClose};
 use muxer::conn::MuxedConn;
-use muxer::{mplex::conn::AsyncHandler, upgrader::MuxerUpgrader};
+use muxer::upgrader::MuxerUpgrader;
 use security::{conn::SecureConn, upgrader::SecurityUpgrader};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+
+use crate::inner::ProtocolHanldler;
 
 pub struct ConnUpgrader {
     sec_upgrader: SecurityUpgrader,
@@ -49,7 +48,7 @@ impl ConnUpgrader {
         stream: T,
         is_initiator: bool,
         remote_peer: PeerInfo,
-        handlers: Arc<Mutex<HashMap<String, AsyncHandler>>>,
+        handlers: Arc<Mutex<HashMap<String, ProtocolHanldler>>>,
         global_event_tx: Sender<Vec<u8>>,
     ) -> Result<(MuxedConn, Sender<Vec<u8>>)>
     where

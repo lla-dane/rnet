@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use identity::{keys::rsa::RsaKeyPair, multiaddr::Multiaddr, traits::core::ISwarm};
+use identity::{multiaddr::Multiaddr, traits::core::ISwarm};
 
 use tokio::sync::mpsc::Sender;
 
