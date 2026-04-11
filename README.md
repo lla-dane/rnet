@@ -4,7 +4,7 @@ This repository is an experimental peer-to-peer networking library written in Ru
 
 ### A p2p chat-room over floodsub using rnet
 
-https://github.com/user-attachments/assets/2dfd2f38-75fe-454e-a003-225765f63c20
+https://github.com/user-attachments/assets/506826b9-cfb6-4947-90b0-d5c21dabd555
 
 ## Repository Structure
 
