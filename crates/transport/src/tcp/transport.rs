@@ -31,6 +31,7 @@ impl ITransport<TcpConn> for TcpTransport {
 
     async fn accept(&self) -> Result<(TcpConn, SocketAddr)> {
         let (stream, addr) = self.listener.accept().await?;
+        stream.set_nodelay(true).unwrap();
         Ok((TcpConn { stream }, addr))
     }
 
@@ -40,6 +41,7 @@ impl ITransport<TcpConn> for TcpTransport {
         let addr = format!("{}:{}", local_ip, port);
 
         let stream = TcpStream::connect(addr).await?;
+        stream.set_nodelay(true).unwrap();
         Ok(TcpConn { stream })
     }
 }
