@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use crate::traits::core::ISwarm;
 
 use std::sync::LazyLock;
-pub static INSTANT: LazyLock<Instant> = LazyLock::new(|| Instant::now());
+pub static INSTANT: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 #[async_trait]
 pub trait IMuxedConn: Send + Sync {
