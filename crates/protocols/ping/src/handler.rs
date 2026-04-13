@@ -87,7 +87,7 @@ impl Ping {
                     match self.ping(stream).await {
                         Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
                         Ok(rtt) => {
-                            debug!("Ping rtt exchange: RTT = [{}]", rtt)
+                            debug!("Ping rtt exchange: RTT = [{}]μs", rtt)
                         }
                     }
                     tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -138,7 +138,7 @@ impl Ping {
                 }
 
                 debug!(
-                    "Ping completed with {} RTT samples from {}:\n{:?}",
+                    "Ping completed with {} RTT samples from {}:\n{:?}μs",
                     rtts.len(),
                     stream.get_peer_id(),
                     rtts
