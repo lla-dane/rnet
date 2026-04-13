@@ -53,13 +53,8 @@ impl MplexStream {
 #[async_trait]
 impl IMuxedStream for MplexStream {
     async fn write(&self, msg: &Vec<u8>) -> Result<()> {
-        if self.is_initiator {
-            let frame = build_frame(self.stream_id, MuxedStreamFlag::MessageRequest, msg);
-            self.muxed_conn_mpsc_tx.send(frame).await?;
-        } else {
-            let frame = build_frame(self.stream_id, MuxedStreamFlag::MessageResponse, msg);
-            self.muxed_conn_mpsc_tx.send(frame).await?;
-        }
+        let frame = build_frame(self.stream_id, MuxedStreamFlag::Message, msg);
+        self.muxed_conn_mpsc_tx.send(frame).await?;
 
         Ok(())
     }
@@ -70,6 +65,7 @@ impl IMuxedStream for MplexStream {
             None => return Err(Error::msg("mpsc receiver down")),
         }
     }
+
     async fn handle_conn(mut self, proto: Option<Vec<u8>>) -> Result<()> {
         match self.negotiate(proto).await {
             Some(protocol) => {
@@ -82,13 +78,6 @@ impl IMuxedStream for MplexStream {
                         .unwrap()
                 };
 
-                // match protocol.as_str() {
-                //     FLOODSUB => println!("floodsub here osdbgfi"),
-                //     PING => println!("ping here osdbgfi"),
-                //     _ => {}
-                // }
-
-                // handler(Box::new(self)).await.unwrap();
                 handler.stream_handler(Box::new(self)).await.unwrap();
             }
             None => return Err(Error::msg("Protocol negotiation failed")),

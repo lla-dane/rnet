@@ -46,14 +46,18 @@ impl IReadWriteClose for TcpConn {
         let len = msg.len() as u32;
         let len_bytes = len.to_be_bytes();
 
-        self.write(&len_bytes).await?;
-        self.write(msg).await?;
+        let mut buf = Vec::with_capacity(4 + msg.len());
+        buf.extend_from_slice(&len_bytes);
+        buf.extend_from_slice(msg);
+
+        self.write(&buf).await?;
 
         Ok(())
     }
-    async fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let n = self.stream.write(buf).await?;
-        return Ok(n);
+
+    async fn write(&mut self, buf: &[u8]) -> Result<()> {
+        self.stream.write_all(buf).await?;
+        return Ok(());
     }
     async fn close(&mut self) -> Result<()> {
         self.stream.shutdown().await?;

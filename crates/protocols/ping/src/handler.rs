@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -38,6 +41,8 @@ impl Ping {
                 let count_bytes = count.to_be_bytes();
 
                 stream.write(&count_bytes.to_vec()).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(50)).await;
+
                 let mut rtts = Vec::new();
 
                 for _ in 0..count {
@@ -78,6 +83,7 @@ impl Ping {
 
                 let ping_count =
                     u32::from_be_bytes([count_buf[0], count_buf[1], count_buf[2], count_buf[3]]);
+                tokio::time::sleep(Duration::from_millis(50)).await;
 
                 for _ in 0..ping_count {
                     let req = match stream.read().await {
