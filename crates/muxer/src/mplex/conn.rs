@@ -6,7 +6,6 @@ use identity::traits::muxer::IMuxedStream;
 use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::Mutex;
 
-use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::result::Result::Ok;
@@ -144,7 +143,7 @@ where
                 };
             }
 
-            MuxedStreamFlag::MessageResponse | MuxedStreamFlag::MessageRequest => {
+            MuxedStreamFlag::Message => {
                 let muxed_stream_mpsc_tx = self
                     .streams
                     .get_mut(&stream_id)
@@ -184,8 +183,6 @@ where
         peer_id: &str,
         swarm_mpsc_tx: Arc<dyn ISwarm + Send + Sync>,
     ) -> Result<()> {
-        let mut write_queue = VecDeque::<Vec<u8>>::new();
-
         loop {
             tokio::select! {
                 Some(data) = self.mpsc_rx.recv() => {
@@ -193,7 +190,7 @@ where
                         self.handle_incoming(data[INTERNAL.len()..].to_vec()).await.unwrap();
                         continue;
                     }
-                    write_queue.push_back(data);
+                    self.write(&data).await.unwrap();
                 }
 
                 frame = self.raw_conn.read() => {
@@ -202,13 +199,6 @@ where
                             self.handle_incoming(frames).await.unwrap();
                         }
                         Err(_) => {break},
-                    }
-                }
-
-                _ = async {}, if !write_queue.is_empty() => {
-                    let data = write_queue.pop_front().unwrap();
-                    if self.write(&data).await.is_err() {
-                        break;
                     }
                 }
             }
@@ -239,7 +229,7 @@ mod tests {
     #[test]
     fn test_build_and_parse_frame() {
         let stream_id = 42u32;
-        let flag = MuxedStreamFlag::MessageRequest;
+        let flag = MuxedStreamFlag::Message;
         let payload = b"HelloWorld!".to_vec();
 
         let frame = build_frame(stream_id, flag.clone(), &payload);

@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     headers::{process_host_frame, SwarmMpscTxFlag},
@@ -120,22 +117,13 @@ impl SwarmInner {
     }
 
     pub async fn initiate(&mut self, mut swarm_mpsc_rx: Receiver<Vec<u8>>) -> Result<()> {
-        let mut notification = VecDeque::<Vec<u8>>::new();
-
         loop {
             tokio::select! {
                 Ok((stream, _addr)) = self.transport.accept() => {
                     self.conn_handler(stream, false).await.unwrap();
                 }
 
-                Some(event) = swarm_mpsc_rx.recv() => {
-                    notification.push_back(event);
-                }
-
-                _ = async {}, if !notification.is_empty() => {
-                    let frame = notification.pop_front().unwrap();
-
-                    // Process the flag
+                Some(frame) = swarm_mpsc_rx.recv() => {
                     let (flag, (str_pld, opt_vec_pld)): (SwarmMpscTxFlag, (String, Option<Vec<String>>)) = process_host_frame(frame).unwrap();
                     match flag {
 

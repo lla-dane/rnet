@@ -13,7 +13,7 @@ pub trait IReadWriteClose: Send + Sync {
 
     #[allow(clippy::ptr_arg)]
     async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()>;
-    async fn write(&mut self, buf: &[u8]) -> Result<usize>;
+    async fn write(&mut self, buf: &[u8]) -> Result<()>;
     async fn close(&mut self) -> Result<()>;
 }
 
