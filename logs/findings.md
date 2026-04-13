@@ -1,3 +1,21 @@
+- `rtt` behaviour in ping experiments:
+  - Sequential sequence -> 1s delay between pings
+  - burst sequence -> rapid back-to-back pings
+  - under multi-threaded tokio runtime + single-threaded `(flavor="current_thread")` runtime
+    - Sequential: rtt `~180-320μs` + high jitter + no convergence
+    - burst (no-delay) rtt drops over time + converges to `~30μs`
+    - single-threaded runtime: lower jitter + converges to `~28μs`
+  - RTT = network + syscalls + runtime scheduling + cache effects
+  - **why sequential slower ?**
+    - `sleep()` causes: task descheduling + wake-up delay + possible thread migration
+    - CPU caches go cold + kernel buffers drain -> each ping starts from a cold system state
+  - **why burst faster ?**
+    - no sleeping -> no scheduler overhead
+    - same thread + same task + hot CPU caches + active kernel buffers
+    - system stays warm -> latency drops and stabalizes 
+  - Effect of `current-thread` -> removes cross-thread scheduling + no work steals + better cache locality.
+  - The difference is mainly due to runtime scheduling + cache locality + system warm-up
+
 - `dyn` compatibility: means if we can turn a trait into trait object
   - Things that break `dyn` compatibility:
     - `fn foo<T>(&self, x: T)` :- infinite possibilties

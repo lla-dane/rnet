@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use identity::traits::{core::IProtocolHandler, muxer::IMuxedStream};
 use tokio::sync::Mutex;
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 const PING_LENGTH: usize = 32;
 
@@ -28,43 +28,114 @@ impl Ping {
         }
     }
 
+    async fn ping(
+        &self,
+        stream: &mut Box<dyn IMuxedStream + Send + Sync + 'static>,
+    ) -> Result<u128> {
+        let payload = vec![0x01; PING_LENGTH];
+
+        let rtt = match stream.is_initiator() {
+            true => {
+                let start = Instant::now();
+
+                match stream.write(&payload).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("Error in sending ping: {}", e)
+                    }
+                }
+
+                match stream.read().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error in receiving pong: {}", e)
+                    }
+                }
+
+                start.elapsed().as_micros()
+            }
+            false => {
+                match stream.read().await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Error in receiving ping: {}", e)
+                    }
+                }
+
+                match stream.write(&payload).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        error!("Error in sending pong: {}", e)
+                    }
+                }
+
+                0
+            }
+        };
+
+        Ok(rtt)
+    }
+
+    async fn infinite_ping(
+        &self,
+        stream: &mut Box<dyn IMuxedStream + Send + Sync + 'static>,
+    ) -> Result<()> {
+        let peer_id = stream.get_peer_id();
+        match stream.is_initiator() {
+            true => {
+                for _ in 0..10 {
+                    match self.ping(stream).await {
+                        Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
+                        Ok(rtt) => {
+                            debug!("Ping rtt exchange: RTT = [{}]", rtt)
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                }
+            }
+            false => {
+                for _ in 0..10 {
+                    match self.ping(stream).await {
+                        Err(e) => error!("Error in ping exchange: {}, {}", e, peer_id),
+                        _ => {}
+                    }
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                }
+            }
+        };
+
+        Ok(())
+    }
+
     async fn handle_ping(
         &self,
         stream: &mut Box<dyn IMuxedStream + Send + Sync + 'static>,
         count: Option<u32>,
     ) -> Result<()> {
-        let payload = vec![0x01; PING_LENGTH];
+        let peer_id = stream.get_peer_id();
 
         match stream.is_initiator() {
             true => {
+                let mut rtts = Vec::new();
+
                 let count = count.unwrap();
                 let count_bytes = count.to_be_bytes();
 
                 stream.write(&count_bytes.to_vec()).await.unwrap();
                 tokio::time::sleep(Duration::from_millis(50)).await;
 
-                let mut rtts = Vec::new();
+                if count == 0 {
+                    self.infinite_ping(stream).await.unwrap();
+                    return Ok(());
+                }
 
                 for _ in 0..count {
-                    let start = Instant::now();
-
-                    stream.write(&payload).await.unwrap();
-                    let response = match stream.read().await {
-                        Ok(res) => res,
-                        Err(e) => {
-                            warn!("Connection dropped: {}", e);
-                            break;
+                    match self.ping(stream).await {
+                        Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
+                        Ok(rtt) => {
+                            rtts.push(rtt);
                         }
-                    };
-
-                    if response == payload {
-                        let rtt = start.elapsed().as_micros();
-                        rtts.push(rtt);
-                        continue;
                     }
-
-                    warn!("Invalid pong from {}", stream.get_peer_id());
-                    break;
                 }
 
                 debug!(
@@ -85,21 +156,22 @@ impl Ping {
                     u32::from_be_bytes([count_buf[0], count_buf[1], count_buf[2], count_buf[3]]);
                 tokio::time::sleep(Duration::from_millis(50)).await;
 
+                if ping_count == 0 {
+                    self.infinite_ping(stream).await.unwrap();
+                    return Ok(());
+                }
+
                 for _ in 0..ping_count {
-                    let req = match stream.read().await {
-                        Ok(req) => req,
-                        Err(e) => {
-                            warn!("Connection dropped : {}", e);
-                            break;
-                        }
-                    };
-                    stream.write(&req).await.unwrap();
+                    match self.ping(stream).await {
+                        Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
+                        Ok(_) => {}
+                    }
                 }
 
                 debug!(
                     "Ping completed with {} RTTs from {}",
                     ping_count,
-                    stream.get_peer_id()
+                    stream.get_peer_id(),
                 );
             }
         };

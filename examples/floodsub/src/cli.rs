@@ -52,7 +52,7 @@ async fn handle_cmd(line: &str, host_tx: &Arc<Node>) -> Result<()> {
 
         "ping" => {
             let maddr = parts.next().unwrap();
-            let count: u32 = parts.next().unwrap().parse().unwrap();
+            let count: u32 = parts.next().unwrap_or("0").parse().unwrap_or(0);
             host_tx.ping(Some(count), maddr).await.unwrap();
         }
 

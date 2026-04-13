@@ -294,7 +294,7 @@ impl INodePingAPI for Node {
 
                 {
                     let mut ping_count = ping.count.lock().await;
-                    *ping_count = count.unwrap_or(5);
+                    *ping_count = count.unwrap_or(0);
                 }
 
                 self.new_stream(maddr, vec![PING.to_string()])

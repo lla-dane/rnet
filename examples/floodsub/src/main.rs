@@ -8,7 +8,8 @@ use tracing_subscriber::EnvFilter;
 
 use crate::cli::cli_loop;
 
-#[tokio::main]
+// #[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new("trace"))
