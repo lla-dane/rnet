@@ -95,9 +95,8 @@ impl Ping {
             }
             false => {
                 for _ in 0..10 {
-                    match self.ping(stream).await {
-                        Err(e) => error!("Error in ping exchange: {}, {}", e, peer_id),
-                        _ => {}
+                    if let Err(e) = self.ping(stream).await {
+                        error!("Error in ping exchange: {}, {}", e, peer_id)
                     }
                     tokio::time::sleep(Duration::from_millis(1000)).await;
                 }
@@ -162,9 +161,8 @@ impl Ping {
                 }
 
                 for _ in 0..ping_count {
-                    match self.ping(stream).await {
-                        Err(e) => error!("Error in ping sequence: {}, {}", e, peer_id),
-                        Ok(_) => {}
+                    if let Err(e) = self.ping(stream).await {
+                        error!("Error in ping exchange: {}, {}", e, peer_id)
                     }
                 }
 
