@@ -3,6 +3,7 @@ members = [
     "examples/tcp",
     "examples/ping",
     "examples/floodsub",
+    "examples/rlnc",
 
     "crates/identity",
     "crates/transport",
