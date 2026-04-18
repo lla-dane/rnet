@@ -1,25 +1,16 @@
 use rand::RngExt;
+use std::vec;
 
-struct EncodedPacket {
+#[derive(Debug)]
+pub struct EncodedPayload {
     coeffs: Vec<u8>,
     payload: Vec<u8>,
 }
 
-fn split(data: Vec<u8>, chunk_size: usize) -> Vec<Vec<u8>> {
-    let mut packets = Vec::new();
-
-    for chunk in data.chunks(chunk_size) {
-        let mut p = chunk.to_vec();
-
-        while p.len() < chunk_size {
-            p.push(0); // padding
-        }
-
-        packets.push(p);
-    }
-
-    packets
+fn gf_add(a: u8, b: u8) -> u8 {
+    a ^ b
 }
+
 fn gf_mul(mut a: u8, mut b: u8) -> u8 {
     let mut p = 0;
 
@@ -41,11 +32,41 @@ fn gf_mul(mut a: u8, mut b: u8) -> u8 {
     p
 }
 
-fn encode(packets: &[Vec<u8>]) -> EncodedPacket {
-    fn gf_add(a: u8, b: u8) -> u8 {
-        a ^ b
+fn gf_inv(x: u8) -> u8 {
+    for i in 1..=255 {
+        if gf_mul(x, i) == 1 {
+            return i;
+        }
     }
 
+    panic!("No inverse");
+}
+
+pub fn split(payload: Vec<u8>, chunk_size: usize) -> Vec<Vec<u8>> {
+    let mut packets = Vec::new();
+
+    for chunk in payload.chunks(chunk_size) {
+        let mut p = chunk.to_vec();
+
+        while p.len() < chunk_size {
+            p.push(0);
+        }
+
+        packets.push(p);
+    }
+    packets
+}
+
+pub fn generate_encoded_payload(packets: &Vec<Vec<u8>>, count: u8) -> Vec<EncodedPayload> {
+    let mut encoded = Vec::new();
+
+    for _ in 0..count {
+        encoded.push(encode(packets));
+    }
+    encoded
+}
+
+pub fn encode(packets: &Vec<Vec<u8>>) -> EncodedPayload {
     let mut rng = rand::rng();
 
     let n = packets.len();
@@ -64,14 +85,54 @@ fn encode(packets: &[Vec<u8>]) -> EncodedPacket {
         }
     }
 
-    EncodedPacket { coeffs, payload }
+    EncodedPayload { coeffs, payload }
 }
 
-fn generate(packets: &[Vec<u8>], count: usize) -> Vec<EncodedPacket> {
-    (0..count).map(|_| encode(packets)).collect()
+fn main() {
+    let payload = b"123rlnc___rocks!!".to_vec();
+    let packets = split(payload.clone(), 5);
+
+    println!(
+        "payload: {:?},\nbytes: {:?}",
+        String::from_utf8(payload.clone()).unwrap(),
+        payload
+    );
+
+    println!("\nPackets:");
+    for p in &packets {
+        println!("{:?}", p);
+    }
+
+    println!("\n");
+    let encoded_payloads = generate_encoded_payload(&packets, 5);
+    for enc in &encoded_payloads {
+        println!("{:?}", enc);
+    }
+
+    // This will happen in the local end of the receiver
+    let selected: Vec<_> = encoded_payloads.into_iter().take(packets.len()).collect();
+    let (mut matrix, mut data) = build_linear_system(selected);
+
+    println!("\nMatrix before elimination:");
+    println!("{:?}", matrix);
+
+    gaussian_elimination(&mut matrix, &mut data);
+
+    println!("\nMatrix after elimination:");
+    println!("{:?}", matrix);
+
+    println!("\nDecoded packets:");
+    for d in &data {
+        println!("{:?}", d);
+    }
+
+    // reconstruct
+    let output = reconstruct(data);
+
+    println!("\nReconstructed: {:?}", String::from_utf8_lossy(&output));
 }
 
-fn build_system(packets: &[EncodedPacket]) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+pub fn build_linear_system(packets: Vec<EncodedPayload>) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
     let mut matrix = Vec::new();
     let mut data = Vec::new();
 
@@ -81,15 +142,6 @@ fn build_system(packets: &[EncodedPacket]) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
     }
 
     (matrix, data)
-}
-
-fn gf_inv(x: u8) -> u8 {
-    for i in 1..=255 {
-        if gf_mul(x, i) == 1 {
-            return i;
-        }
-    }
-    panic!("no inverse");
 }
 
 fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
@@ -139,81 +191,13 @@ fn gaussian_elimination(matrix: &mut Vec<Vec<u8>>, data: &mut Vec<Vec<u8>>) {
     }
 }
 
-fn reconstruct(data: Vec<Vec<u8>>, original_len: usize) -> Vec<u8> {
+fn reconstruct(data: Vec<Vec<u8>>) -> Vec<u8> {
     let mut result = Vec::new();
 
     for packet in data {
         result.extend(packet);
     }
 
-    result.truncate(original_len); // remove padding
+    // result.truncate(original_len); // remove padding
     result
-}
-
-/// original-data
-/// split
-/// encode (generate N packets)
-/// pick N independent packets
-/// decode (gaussian elimination)
-/// reconstruct
-/// == original ?
-pub fn rlnc() {
-    let input = b"1234hello_world__is_rlnc".to_vec();
-    let original_len = input.len();
-
-    println!(
-        "Original: {:?},\nBytes: {:?}",
-        String::from_utf8_lossy(&input),
-        input
-    );
-
-    // split
-    let packets = split(input.clone(), 5);
-    let generation_size = packets.len();
-
-    println!("Packets:");
-    for p in &packets {
-        println!("{:?}", p);
-    }
-
-    // encode (generate more than needed)
-    let encoded = generate(&packets, generation_size + 2);
-
-    println!("\nEncoded packets:");
-    for e in &encoded {
-        println!("coeffs: {:?}, payload: {:?}", e.coeffs, e.payload);
-    }
-
-    // Take first N packets (this should be randomized later)
-    let selected: Vec<_> = encoded.into_iter().take(generation_size).collect();
-
-    // build system
-    let (mut matrix, mut data) = build_system(&selected);
-
-    println!("\nMatrix before elimination:");
-    println!("{:?}", matrix);
-
-    // decode
-    gaussian_elimination(&mut matrix, &mut data);
-
-    println!("\nMatrix after elimination:");
-    println!("{:?}", matrix);
-
-    println!("\nDecoded packets:");
-    for d in &data {
-        println!("{:?}", d);
-    }
-
-    // reconstruct
-    let output = reconstruct(data, original_len);
-
-    println!("\nReconstructed: {:?}", String::from_utf8_lossy(&output));
-
-    // verify
-    assert_eq!(input, output);
-    println!("\n✅ SUCCESS: Data reconstructed correctly");
-}
-
-fn main() {
-    rlnc();
 }
