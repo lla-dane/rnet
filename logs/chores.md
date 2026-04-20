@@ -1,4 +1,5 @@
 - [ ]
+- [ ] implement a liveliness checkup utiltiy for udp connections
 - [ ] figure out the duplicacy of headers in `node` and `swarm`
 - [x] upgrade the crate placements 
 - [ ] fix the placement of `global_event_tx` in `MuxedConn` and `MplexConn`

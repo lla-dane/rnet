@@ -3,10 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use async_trait::async_trait;
 use identity::traits::{core::IProtocolHandler, muxer::IMuxedStream};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::timeout};
 use tracing::{debug, error, warn};
 
 const PING_LENGTH: usize = 32;
@@ -33,43 +33,50 @@ impl Ping {
         stream: &mut Box<dyn IMuxedStream + Send + Sync + 'static>,
     ) -> Result<u128> {
         let payload = vec![0x01; PING_LENGTH];
+        let timeout_duration = Duration::from_secs(2);
 
         let rtt = match stream.is_initiator() {
             true => {
                 let start = Instant::now();
 
-                match stream.write(&payload).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        error!("Error in sending ping: {}", e)
+                let exchange = async {
+                    stream.write(&payload).await?;
+                    stream.read().await?;
+                    Ok(())
+                };
+
+                match timeout(timeout_duration, exchange).await {
+                    Ok(Ok(())) => start.elapsed().as_micros(),
+
+                    Ok(Err(e)) => {
+                        error!("Ping exchange failed: {}", e);
+                        return Err(e);
+                    }
+
+                    Err(_) => {
+                        return Err(Error::msg(format!("ping timeout: {:?}", timeout_duration)));
                     }
                 }
-
-                match stream.read().await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Error in receiving pong: {}", e)
-                    }
-                }
-
-                start.elapsed().as_micros()
             }
             false => {
-                match stream.read().await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Error in receiving ping: {}", e)
+                let exchange = async {
+                    stream.read().await?;
+                    stream.write(&payload).await?;
+                    Ok(())
+                };
+
+                match timeout(timeout_duration, exchange).await {
+                    Ok(Ok(())) => 0,
+
+                    Ok(Err(e)) => {
+                        error!("Ping exchange failed: {}", e);
+                        return Err(e);
+                    }
+
+                    Err(_) => {
+                        return Err(Error::msg("ping timeout"));
                     }
                 }
-
-                match stream.write(&payload).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        error!("Error in sending pong: {}", e)
-                    }
-                }
-
-                0
             }
         };
 

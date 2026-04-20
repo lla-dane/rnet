@@ -164,10 +164,6 @@ impl Multiaddr {
         self.components.push(proto);
     }
 
-    pub fn push(&mut self, proto: Protocol) {
-        self.components.push(proto);
-    }
-
     pub fn pop(&mut self) -> Option<Protocol> {
         self.components.pop()
     }

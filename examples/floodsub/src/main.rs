@@ -18,7 +18,8 @@ async fn main() -> Result<()> {
         .compact()
         .init();
 
-    let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
+    let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/udp/0").unwrap();
+    // let mut listen_addr = Multiaddr::new("ip4/127.0.0.1/tcp/0").unwrap();
     let (host_mpsc_tx, _global_rx) = NodeInner::new(
         &mut listen_addr,
         vec![InnerProtocolOpt::Floodsub, InnerProtocolOpt::Ping],

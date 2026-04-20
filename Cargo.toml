@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "examples/tcp",
+    "examples/udp",
     "examples/ping",
     "examples/floodsub",
 

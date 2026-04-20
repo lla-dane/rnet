@@ -1,6 +1,6 @@
 use identity::{
     keys::rsa::RsaKeyPair,
-    multiaddr::Multiaddr,
+    multiaddr::{Multiaddr, Protocol},
     peer::PeerInfo,
     traits::core::{IProtocolHandler, ISwarm},
 };
@@ -75,15 +75,23 @@ impl NodeInner {
         debug!("Generating RSA keypair");
         let keypair = RsaKeyPair::generate().unwrap();
         let peer_id = keypair.peer_id();
+        listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
+
         let handlers = Arc::new(Mutex::new(HashMap::new()));
 
         // mpsc channels
         let (global_event_tx, global_event_rx) = mpsc::channel::<Vec<u8>>(100);
         let (mpsc_tx, node_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
+        // extract transport opt
+        let transport_opt = match listen_addr.value_for_protocol("tcp") {
+            Some(_) => "tcp",
+            None => "udp",
+        };
+
         // swarm/local_peer_info
         let (swarm_mpsc_tx, peerstore, local_peer_info) = SwarmInner::new(
-            "tcp",
+            transport_opt,
             listen_addr,
             peer_id.clone(),
             handlers.clone(),

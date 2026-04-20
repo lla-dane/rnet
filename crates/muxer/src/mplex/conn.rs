@@ -170,8 +170,8 @@ where
                 muxed_stream_mpsc_tx.send(payload_extracted).await.unwrap();
             }
 
-            MuxedStreamFlag::CloseStream => {
-                self.streams.remove(&stream_id);
+            MuxedStreamFlag::Disconnected => {
+                self.raw_conn.close().await.unwrap();
             }
         }
 

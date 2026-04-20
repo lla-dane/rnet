@@ -1,3 +1,5 @@
+- In `Udp`, if a 3000 bytes packets is in arrival, and split into fragments. then all fragments must arrive, if even one fragment is lost, then the entire packet is lost.
+
 - `rtt` behaviour in ping experiments:
   - Sequential sequence -> 1s delay between pings
   - burst sequence -> rapid back-to-back pings

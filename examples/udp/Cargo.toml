@@ -1,0 +1,19 @@
+[package]
+name = "udp"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "udp"
+path = "src/main.rs"
+
+[dependencies]
+tokio = {workspace = true}
+anyhow = {workspace = true}
+async-trait = {workspace = true}
+tracing = {workspace = true}
+tracing-subscriber = {workspace = true}
+
+transport = { path = "../../crates/transport" }
+node = {path = "../../crates/node"}
+identity = {path = "../../crates/identity"}
