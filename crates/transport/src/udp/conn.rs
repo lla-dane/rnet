@@ -6,9 +6,9 @@ use identity::traits::core::IReadWriteClose;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct UdpConn {
-    socket_mspc_tx: Sender<Vec<u8>>,
-    socket_mpsc_rx: Receiver<Vec<u8>>,
-    peer: SocketAddr,
+    pub socket_mpsc_tx: Sender<Vec<u8>>,
+    pub socket_mpsc_rx: Receiver<Vec<u8>>,
+    pub peer: String,
 }
 
 #[async_trait]
@@ -23,8 +23,8 @@ impl IReadWriteClose for UdpConn {
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
         let mut buffer = buf.to_vec();
 
-        append_addr(self.peer, &mut buffer).unwrap();
-        self.socket_mspc_tx.send(buffer).await.unwrap();
+        append_addr(self.peer.clone(), &mut buffer).unwrap();
+        self.socket_mpsc_tx.send(buffer).await.unwrap();
         Ok(())
     }
 
@@ -44,14 +44,18 @@ impl IReadWriteClose for UdpConn {
     }
 }
 
-pub fn append_addr(peer_addr: SocketAddr, buf: &mut Vec<u8>) -> Result<()> {
-    let addr = match peer_addr {
+pub fn append_addr(peer_addr: String, buf: &mut Vec<u8>) -> Result<()> {
+    let addr: SocketAddr = peer_addr
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid socket address"))?;
+
+    let v4 = match addr {
         SocketAddr::V4(v4) => v4,
-        _ => panic!("Only IPv4 supported"),
+        _ => return Err(anyhow::anyhow!("Only IPv4 supported")),
     };
 
-    let ip = addr.ip().octets(); // [u8; 4]
-    let port = addr.port().to_be_bytes(); // [u8; 2]
+    let ip = v4.ip().octets(); // [u8; 4]
+    let port = v4.port().to_be_bytes(); // [u8; 2]
 
     buf.extend_from_slice(&ip);
     buf.extend_from_slice(&port);

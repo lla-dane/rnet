@@ -8,5 +8,5 @@ use crate::multiaddr::Multiaddr;
 pub trait ITransport<T>: Sized {
     async fn listen(addr: &Multiaddr) -> Result<Self>;
     async fn accept(&self) -> Result<(T, SocketAddr)>;
-    async fn dial(addr: &Multiaddr) -> Result<T>;
+    async fn dial(&self, addr: &Multiaddr) -> Result<T>;
 }

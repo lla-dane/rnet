@@ -35,7 +35,7 @@ impl ITransport<TcpConn> for TcpTransport {
         Ok((TcpConn { stream }, addr))
     }
 
-    async fn dial(addr: &Multiaddr) -> Result<TcpConn> {
+    async fn dial(&self, addr: &Multiaddr) -> Result<TcpConn> {
         let local_ip = addr.value_for_protocol("ip4").unwrap();
         let port = addr.value_for_protocol("tcp").unwrap();
         let addr = format!("{}:{}", local_ip, port);

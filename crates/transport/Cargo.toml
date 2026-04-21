@@ -8,6 +8,7 @@ tokio = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 prost = { workspace = true }
+tracing = { workspace = true }
 
 schema = { path = "../schema" }
-identity = {path = "../identity"}
+identity = { path = "../identity" }

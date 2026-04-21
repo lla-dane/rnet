@@ -51,15 +51,17 @@ async fn main() -> Result<()> {
         }
     } else {
         let multiaddr = Multiaddr::new(destination).unwrap();
-        let mut stream = TcpTransport::dial(&multiaddr).await.unwrap();
-        info!("Sending ping");
-        stream.write(b"ping").await.unwrap();
+        todo!();
 
-        let mut buf = [0u8; 16];
-        let n = stream.read(&mut buf).await.unwrap();
+        // let mut stream = TcpTransport::dial(&multiaddr).await.unwrap();
+        // info!("Sending ping");
+        // stream.write(b"ping").await.unwrap();
 
-        let received = String::from_utf8_lossy(&buf[..n]).to_string();
-        info!("Received {:?}", received);
+        // let mut buf = [0u8; 16];
+        // let n = stream.read(&mut buf).await.unwrap();
+
+        // let received = String::from_utf8_lossy(&buf[..n]).to_string();
+        // info!("Received {:?}", received);
     }
 
     Ok(())
