@@ -25,7 +25,7 @@ pub async fn client() -> Result<()> {
     buf[0..bytes.len()].copy_from_slice(bytes);
 
     socket.send_to(bytes, remote).await.unwrap();
-    let (len, addr) = socket.recv_from(&mut buf).await.unwrap();
+    let (_len, addr) = socket.recv_from(&mut buf).await.unwrap();
 
     println!("received: {:?}, from {}", &buf[0..bytes.len()], addr);
 

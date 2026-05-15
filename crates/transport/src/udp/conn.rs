@@ -5,10 +5,12 @@ use async_trait::async_trait;
 use identity::traits::core::IReadWriteClose;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::udp::headers::{serialize_udp_packet, UdpPacketFlag};
+
 pub struct UdpConn {
-    pub socket_mpsc_tx: Sender<Vec<u8>>,
+    pub write_req_tx: Sender<(SocketAddr, Vec<u8>)>,
     pub socket_mpsc_rx: Receiver<Vec<u8>>,
-    pub peer: String,
+    pub remote_socket: SocketAddr,
 }
 
 #[async_trait]
@@ -21,10 +23,12 @@ impl IReadWriteClose for UdpConn {
     }
 
     async fn write(&mut self, buf: &[u8]) -> Result<()> {
-        let mut buffer = buf.to_vec();
+        let buffer = serialize_udp_packet(buf.to_vec(), UdpPacketFlag::General);
 
-        append_addr(self.peer.clone(), &mut buffer).unwrap();
-        self.socket_mpsc_tx.send(buffer).await.unwrap();
+        self.write_req_tx
+            .send((self.remote_socket, buffer))
+            .await
+            .unwrap();
         Ok(())
     }
 
@@ -32,23 +36,19 @@ impl IReadWriteClose for UdpConn {
         Ok(())
     }
 
-    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+    async fn read_exact(&mut self, _buf: &mut [u8]) -> Result<()> {
         Ok(())
     }
     async fn recv_msg(&mut self) -> Result<Vec<u8>> {
         todo!()
     }
 
-    async fn send_bytes(&mut self, msg: &Vec<u8>) -> Result<()> {
+    async fn send_bytes(&mut self, _msg: &Vec<u8>) -> Result<()> {
         Ok(())
     }
 }
 
-pub fn append_addr(peer_addr: String, buf: &mut Vec<u8>) -> Result<()> {
-    let addr: SocketAddr = peer_addr
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Invalid socket address"))?;
-
+pub fn append_addr(addr: SocketAddr, buf: &mut Vec<u8>) -> Result<()> {
     let v4 = match addr {
         SocketAddr::V4(v4) => v4,
         _ => return Err(anyhow::anyhow!("Only IPv4 supported")),
