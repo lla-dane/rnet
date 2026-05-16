@@ -1,8 +1,11 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use identity::{multiaddr::Multiaddr, traits::transport::ITransport};
+use identity::{
+    multiaddr::Multiaddr,
+    traits::{core::IReadWriteClose, transport::ITransport},
+};
 use tokio::{
     net::UdpSocket,
     sync::{
@@ -37,7 +40,6 @@ impl UdpTransport {
     }
 
     pub async fn io_loop(&self, mut write_req_rx: Receiver<OutgoingFrame>) -> Result<()> {
-        info!("Starting UDP io loop");
         let mut buffer = vec![0u8; 1500]; // typical MTU size
         loop {
             tokio::select! {
@@ -51,7 +53,7 @@ impl UdpTransport {
 
                     match flag {
                         UdpPacketFlag::Connect => {
-                            info!("New Peer Connected: {}", String::from_utf8_lossy(&payload));
+                            info!("UDP-CONNECTION: {}", String::from_utf8_lossy(&payload));
                             self.new_peer_tx.send(remote_socket).await.unwrap();
                         },
                         UdpPacketFlag::Disconnect => {
@@ -70,7 +72,7 @@ impl UdpTransport {
                 }
 
                 Some((socket, frame)) = write_req_rx.recv() => {
-                    self.listener.send_to(&frame, socket).await.unwrap();
+                    self.listener.send_to(frame.as_slice(), socket).await.unwrap();
                 }
             }
         }
@@ -111,7 +113,7 @@ impl ITransport<UdpConn> for UdpTransport {
         tokio::spawn(async move {
             arc_transport.io_loop(write_req_rx).await.unwrap();
         });
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        // tokio::time::sleep(Duration::from_millis(1000)).await;
 
         Ok(transport)
     }
@@ -131,15 +133,15 @@ impl ITransport<UdpConn> for UdpTransport {
             let mut peerstore = self.peerstore.lock().await;
             peerstore.insert(socket_addr, socket_mpsc_tx);
         }
+        let mut udp_conn = UdpConn {
+            write_req_tx: self.write_req_tx.clone(),
+            socket_mpsc_rx,
+            remote_socket: socket_addr,
+        };
 
-        Ok((
-            UdpConn {
-                write_req_tx: self.write_req_tx.clone(),
-                socket_mpsc_rx,
-                remote_socket: socket_addr,
-            },
-            socket_addr,
-        ))
+        udp_conn.write(b"peerstore_updated").await.unwrap();
+
+        Ok((udp_conn, socket_addr))
     }
 
     async fn dial(&self, addr: &Multiaddr) -> Result<UdpConn> {
@@ -160,12 +162,17 @@ impl ITransport<UdpConn> for UdpTransport {
             peerstore.insert(remote_socket_addr, socket_mpsc_tx);
         }
 
-        info!("New peer connected: {}", remote_peer_id);
+        info!("UDP-CONNECTION: {}", remote_peer_id);
 
-        Ok(UdpConn {
+        let mut upd_conn = UdpConn {
             write_req_tx: self.write_req_tx.clone(),
             socket_mpsc_rx,
             remote_socket: remote_socket_addr,
-        })
+        };
+
+        let ack = upd_conn.recv_msg().await.unwrap();
+        assert_eq!(ack, b"peerstore_updated");
+
+        Ok(upd_conn)
     }
 }

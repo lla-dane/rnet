@@ -40,10 +40,19 @@ impl IReadWriteClose for UdpConn {
         Ok(())
     }
     async fn recv_msg(&mut self) -> Result<Vec<u8>> {
-        todo!()
+        // This is essentially a copy of read
+
+        Ok(self.socket_mpsc_rx.recv().await.unwrap())
     }
 
     async fn send_bytes(&mut self, _msg: &Vec<u8>) -> Result<()> {
+        // This is copy of write
+        let buffer = serialize_udp_packet(_msg.clone(), UdpPacketFlag::General);
+
+        self.write_req_tx
+            .send((self.remote_socket, buffer))
+            .await
+            .unwrap();
         Ok(())
     }
 }

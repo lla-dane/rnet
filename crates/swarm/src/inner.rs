@@ -77,7 +77,7 @@ impl SwarmInner {
         // update the listen addr, with actual random port
         let parts: Vec<&str> = listen_ip.split(':').collect();
         listen_addr
-            .replace_value_for_protocol("tcp", parts[1])
+            .replace_value_for_protocol("udp", parts[1])
             .unwrap();
         listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
@@ -165,7 +165,6 @@ impl SwarmInner {
 
         // ---- SECURED + IDENTIFIED + MUXED + PEER-STORE----
         let secured_conn = self.update_security(stream, is_initiator).await.unwrap();
-
         let (raw_conn, remote_peer) = self
             .identify(&local, secured_conn, is_initiator)
             .await
