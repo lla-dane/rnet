@@ -319,7 +319,7 @@ impl SwarmInner {
         let mut connections = self.connections.lock().await;
 
         // TODO: this is necessary only when on UDP
-        if transport_protocol != None {
+        if transport_protocol.is_some() {
             let muxed_mpsc_tx = connections.get_mut(peer_id).unwrap().clone();
             let mut disconnect_frame = build_frame(0, MuxedStreamFlag::Disconnected, b"");
             disconnect_frame.splice(0..0, INTERNAL);

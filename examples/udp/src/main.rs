@@ -48,5 +48,5 @@ async fn main() {
 
         let _udp_conn = transport.dial(&multiaddr).await.unwrap();
     }
-    loop {}
+    // loop {}
 }
