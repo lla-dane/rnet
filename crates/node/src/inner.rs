@@ -83,9 +83,15 @@ impl NodeInner {
         let (global_event_tx, global_event_rx) = mpsc::channel::<Vec<u8>>(100);
         let (mpsc_tx, node_mpsc_rx) = mpsc::channel::<Vec<u8>>(100);
 
+        // extract transport opt
+        let transport_opt = match listen_addr.value_for_protocol("tcp") {
+            Some(_) => "tcp",
+            None => "udp",
+        };
+
         // swarm/local_peer_info
         let (swarm_mpsc_tx, peerstore, local_peer_info) = SwarmInner::new(
-            "udp",
+            transport_opt,
             listen_addr,
             peer_id.clone(),
             handlers.clone(),

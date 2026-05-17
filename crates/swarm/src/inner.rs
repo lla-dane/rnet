@@ -74,10 +74,16 @@ impl SwarmInner {
 
         let (transport, listen_ip) = Transport::new(transport_opt, listen_addr).await.unwrap();
 
+        // extract transport opt
+        let transport_opt = match listen_addr.value_for_protocol("tcp") {
+            Some(_) => "tcp",
+            None => "udp",
+        };
+
         // update the listen addr, with actual random port
         let parts: Vec<&str> = listen_ip.split(':').collect();
         listen_addr
-            .replace_value_for_protocol("udp", parts[1])
+            .replace_value_for_protocol(transport_opt, parts[1])
             .unwrap();
         listen_addr.push_proto(Protocol::P2P(peer_id.clone()));
 
