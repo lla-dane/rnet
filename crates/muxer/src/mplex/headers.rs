@@ -4,7 +4,7 @@ use anyhow::Result;
 pub enum MuxedStreamFlag {
     NewStream,
     Message,
-    CloseStream,
+    Disconnected,
     HandshakeReq,
     HandshakeRes,
 }
@@ -14,7 +14,7 @@ impl MuxedStreamFlag {
         match self {
             Self::NewStream => 1,
             Self::Message => 2,
-            Self::CloseStream => 4,
+            Self::Disconnected => 4,
             Self::HandshakeReq => 5,
             Self::HandshakeRes => 6,
         }
@@ -24,7 +24,7 @@ impl MuxedStreamFlag {
         match tag {
             1 => Some(Self::NewStream),
             2 => Some(Self::Message),
-            4 => Some(Self::CloseStream),
+            4 => Some(Self::Disconnected),
             5 => Some(Self::HandshakeReq),
             6 => Some(Self::HandshakeRes),
             _ => None,

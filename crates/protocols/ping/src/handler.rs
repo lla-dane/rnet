@@ -54,7 +54,7 @@ impl Ping {
                     }
 
                     Err(_) => {
-                        return Err(Error::msg("ping timeout"));
+                        return Err(Error::msg(format!("ping timeout: {:?}", timeout_duration)));
                     }
                 }
             }

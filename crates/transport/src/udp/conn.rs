@@ -33,6 +33,12 @@ impl IReadWriteClose for UdpConn {
     }
 
     async fn close(&mut self) -> Result<()> {
+        let buffer = serialize_udp_packet(b"disconnect".to_vec(), UdpPacketFlag::Disconnect);
+
+        self.write_req_tx
+            .send((self.remote_socket, buffer))
+            .await
+            .unwrap();
         Ok(())
     }
 

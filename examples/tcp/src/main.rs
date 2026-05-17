@@ -42,7 +42,6 @@ async fn main() -> Result<()> {
     //     }
     // } else {
     //     let multiaddr = Multiaddr::new(destination).unwrap();
-    //     todo!();
 
     //     // let mut stream = TcpTransport::dial(&multiaddr).await.unwrap();
     //     // info!("Sending ping");

@@ -13,7 +13,7 @@ use tokio::{
         Mutex,
     },
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::udp::{
     conn::UdpConn,
@@ -58,6 +58,10 @@ impl UdpTransport {
                         },
                         UdpPacketFlag::Disconnect => {
                             // update the peerstore, clean the udp_Conn
+                            let mut peerstore = self.peerstore.lock().await;
+                            peerstore.remove(&remote_socket);
+                            debug!("Peer removed from UDP peerstore");
+                            continue;
                         },
                         UdpPacketFlag::General => {
                             // fetch the udp_conn and transmit the packet

@@ -98,7 +98,7 @@ impl SwarmInner {
             swarm_mpsc_tx: mpsc_tx,
         });
 
-        let mut swarm_inner = SwarmInner {
+        let swarm_inner = Arc::new(SwarmInner {
             transport,
             upgrader: ConnUpgrader::new(),
             connections: Arc::new(Mutex::new(HashMap::new())),
@@ -107,7 +107,7 @@ impl SwarmInner {
             handlers,
             swarm_mpsc_tx: swarm_mpsc_tx.clone(),
             global_event_tx,
-        };
+        });
 
         tokio::spawn(async move {
             swarm_inner.initiate(swarm_mpsc_rx).await.unwrap();
@@ -116,7 +116,11 @@ impl SwarmInner {
         Ok((swarm_mpsc_tx, peerstore, local_peer_info))
     }
 
-    pub async fn initiate(&mut self, mut swarm_mpsc_rx: Receiver<Vec<u8>>) -> Result<()> {
+    pub async fn liveliness_checkup(&self) -> Result<()> {
+        todo!();
+    }
+
+    pub async fn initiate(&self, mut swarm_mpsc_rx: Receiver<Vec<u8>>) -> Result<()> {
         loop {
             tokio::select! {
                 Ok((stream, _addr)) = self.transport.accept() => {
@@ -302,11 +306,21 @@ impl SwarmInner {
 
     async fn on_disconnect(&self, peer_id: &str) -> Result<()> {
         let mut peerstore = self.peerstore.lock().await;
-        peerstore.peer_store.remove(peer_id);
+        let remote_peer_info = peerstore.peer_store.remove(peer_id).unwrap();
+        let remote_listen_addr = Multiaddr::new(&remote_peer_info.listen_addr).unwrap();
+        let transport_protocol = remote_listen_addr.value_for_protocol("udp");
 
         let mut connections = self.connections.lock().await;
-        connections.remove(peer_id);
 
+        // TODO: this is necessary only when on UDP
+        if transport_protocol != None {
+            let muxed_mpsc_tx = connections.get_mut(peer_id).unwrap().clone();
+            let mut disconnect_frame = build_frame(0, MuxedStreamFlag::Disconnected, b"");
+            disconnect_frame.splice(0..0, INTERNAL);
+            muxed_mpsc_tx.send(disconnect_frame).await.unwrap();
+        }
+
+        connections.remove(peer_id);
         warn!("Peer disconnected: {}", peer_id);
 
         Ok(())
