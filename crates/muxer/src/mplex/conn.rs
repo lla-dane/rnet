@@ -5,6 +5,7 @@ use identity::traits::core::ISwarm;
 use identity::traits::muxer::IMuxedStream;
 use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -39,6 +40,7 @@ where
     pub mpsc_tx: Sender<Vec<u8>>,
     pub mpsc_rx: Receiver<Vec<u8>>,
     pub global_event_tx: Sender<Vec<u8>>,
+    pub ping_check_tx: Sender<Vec<u8>>,
 }
 
 impl<T> MplexConn<T>
@@ -52,6 +54,7 @@ where
         mpsc_tx: Sender<Vec<u8>>,
         mpsc_rx: Receiver<Vec<u8>>,
         global_event_tx: Sender<Vec<u8>>,
+        ping_check_tx: Sender<Vec<u8>>,
     ) -> MplexConn<T> {
         MplexConn {
             raw_conn,
@@ -62,6 +65,7 @@ where
             mpsc_tx,
             mpsc_rx,
             global_event_tx,
+            ping_check_tx,
         }
     }
 }
@@ -71,7 +75,7 @@ impl<T> IMuxedConn for MplexConn<T>
 where
     T: IRawConnection + Send + Sync,
 {
-    async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()> {
+    async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<bool> {
         // Process frames, to see the following:
         // - create a new muxed-stream as per the headers
         // - see which stream the payload belongs to, as per the headers
@@ -171,11 +175,19 @@ where
             }
 
             MuxedStreamFlag::Disconnected => {
+                // TODO: This case happens only for UDP, but can be done for TCP
+                // in future for healthy shudown
+                warn!("Peer Disconnected: {}", self.remote_peer_info.peer_id);
                 self.raw_conn.close().await.unwrap();
+                return Ok(false);
+            }
+
+            MuxedStreamFlag::Liveliness => {
+                self.ping_check_tx.send(payload_extracted).await.unwrap();
             }
         }
 
-        Ok(())
+        Ok(true)
     }
 
     async fn conn_handler(
@@ -187,8 +199,10 @@ where
             tokio::select! {
                 Some(data) = self.mpsc_rx.recv() => {
                     if data.starts_with(&INTERNAL) {
-                        self.handle_incoming(data[INTERNAL.len()..].to_vec()).await.unwrap();
-                        continue;
+                        match self.handle_incoming(data[INTERNAL.len()..].to_vec()).await.unwrap() {
+                            true => continue,
+                            false => return Ok(()),
+                        }
                     }
                     self.write(&data).await.unwrap();
                 }

@@ -1,14 +1,23 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Error, Result};
+use identity::multiaddr::Multiaddr;
 use identity::peer::PeerInfo;
 use identity::traits::core::ISwarm;
 use identity::traits::{core::IRawConnection, muxer::IMuxedConn};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
+use tracing::debug;
+
+use std::result::Result::Ok;
+use std::time::Duration;
 
 use crate::mplex::conn::MplexConn;
+use crate::mplex::headers::{build_frame, MuxedStreamFlag};
 use crate::upgrader::ProtocolHanldler;
+
+const INTERNAL: [u8; 16] = *b"internal-payload";
 
 // mplex-conn: IMuxedConn
 // handle_incoming
@@ -34,7 +43,7 @@ pub struct MuxedConn {
 // multiplexing router i.e mplex / yamux
 impl MuxedConn {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<W>(
+    pub async fn new<W>(
         protocol: &str,
         raw_conn: W,
         is_initiator: bool,
@@ -47,7 +56,9 @@ impl MuxedConn {
     where
         W: IRawConnection + Send + Sync + 'static,
     {
-        match protocol {
+        let (ping_check_tx, ping_check_rx) = mpsc::channel::<Vec<u8>>(100);
+
+        let muxed_conn = match protocol {
             "mplex" => {
                 let mplex_conn = MplexConn::new(
                     raw_conn,
@@ -56,18 +67,27 @@ impl MuxedConn {
                     muxed_mpsc_tx.clone(),
                     muxed_mpsc_rx,
                     global_event_tx.clone(),
+                    ping_check_tx,
                 );
 
                 Ok(MuxedConn {
                     conn: Box::new(mplex_conn),
                     is_initiator,
-                    remote_peer,
-                    muxed_mpsc_tx,
+                    remote_peer: remote_peer.clone(),
+                    muxed_mpsc_tx: muxed_mpsc_tx.clone(),
                     global_event_tx,
                 })
             }
             _ => Err(Error::msg("protocol not found")),
-        }
+        };
+
+        tokio::spawn(async move {
+            ping_check(ping_check_rx, muxed_mpsc_tx, is_initiator, remote_peer)
+                .await
+                .unwrap();
+        });
+
+        muxed_conn
     }
 
     pub async fn conn_handler(
@@ -85,4 +105,57 @@ impl MuxedConn {
 
         Ok(())
     }
+}
+
+/// Only required for UDP connections
+pub async fn ping_check(
+    mut ping_check_rx: Receiver<Vec<u8>>,
+    write_req_tx: Sender<Vec<u8>>,
+    is_initiator: bool,
+    remote_peer: PeerInfo,
+) -> Result<()> {
+    let remote_multiaddr = Multiaddr::new(&remote_peer.listen_addr).unwrap();
+    if remote_multiaddr.value_for_protocol("tcp").is_some() {
+        return Ok(());
+    }
+    debug!("Liveliness check initiating: {}", remote_peer.peer_id);
+
+    let ping_payload = build_frame(0, MuxedStreamFlag::Liveliness, b"liveliness");
+    loop {
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        // debug!("Liveliness check: {}", remote_peer.peer_id);
+
+        match is_initiator {
+            true => {
+                let exchange = async {
+                    write_req_tx.send(ping_payload.clone()).await.unwrap();
+                    ping_check_rx.recv().await.unwrap();
+                };
+
+                match timeout(Duration::from_secs(2), exchange).await {
+                    Ok(()) => continue,
+                    Err(_) => break,
+                };
+            }
+            false => {
+                let exchange = async {
+                    ping_check_rx.recv().await.unwrap();
+                    write_req_tx.send(ping_payload.clone()).await.unwrap();
+                };
+
+                match timeout(Duration::from_secs(2), exchange).await {
+                    Ok(()) => continue,
+                    Err(_) => break,
+                };
+            }
+        };
+    }
+
+    // Send out the diconnection notification
+    let mut disconnect_payload = build_frame(0, MuxedStreamFlag::Disconnected, b"disconnected");
+    disconnect_payload.splice(0..0, INTERNAL);
+
+    write_req_tx.send(disconnect_payload).await.unwrap();
+
+    Ok(())
 }

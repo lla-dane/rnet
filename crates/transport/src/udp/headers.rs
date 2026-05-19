@@ -37,7 +37,7 @@ pub fn deserialize_udp_packet(buf: &[u8]) -> Option<(UdpPacketFlag, Vec<u8>)> {
         x if x == UdpPacketFlag::Disconnect as u8 => UdpPacketFlag::Disconnect,
         x if x == UdpPacketFlag::General as u8 => UdpPacketFlag::General,
         _ => {
-            error!("Unknow flag");
+            error!("Unknown flag");
             return None;
         } // unknown flag
     };

@@ -7,6 +7,7 @@ pub enum MuxedStreamFlag {
     Disconnected,
     HandshakeReq,
     HandshakeRes,
+    Liveliness,
 }
 
 impl MuxedStreamFlag {
@@ -17,6 +18,7 @@ impl MuxedStreamFlag {
             Self::Disconnected => 4,
             Self::HandshakeReq => 5,
             Self::HandshakeRes => 6,
+            Self::Liveliness => 7,
         }
     }
 
@@ -27,6 +29,7 @@ impl MuxedStreamFlag {
             4 => Some(Self::Disconnected),
             5 => Some(Self::HandshakeReq),
             6 => Some(Self::HandshakeRes),
+            7 => Some(Self::Liveliness),
             _ => None,
         }
     }

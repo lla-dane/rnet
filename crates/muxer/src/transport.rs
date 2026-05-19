@@ -86,6 +86,7 @@ impl MuxerTransport {
             muxed_mpsc_tx.clone(),
             global_event_tx,
         )
+        .await
         .unwrap();
 
         Ok((muxed_conn, muxed_mpsc_tx))

@@ -1,11 +1,12 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
+use crate::udp::headers::{serialize_udp_packet, UdpPacketFlag};
 use anyhow::{Error, Result};
 use async_trait::async_trait;
 use identity::traits::core::IReadWriteClose;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::udp::headers::{serialize_udp_packet, UdpPacketFlag};
+const INTERNAL: [u8; 16] = *b"internal-payload";
 
 pub struct UdpConn {
     pub write_req_tx: Sender<(SocketAddr, Vec<u8>)>,
@@ -33,7 +34,8 @@ impl IReadWriteClose for UdpConn {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let buffer = serialize_udp_packet(b"disconnect".to_vec(), UdpPacketFlag::Disconnect);
+        let mut buffer = serialize_udp_packet(b"disconnect".to_vec(), UdpPacketFlag::Disconnect);
+        buffer.splice(0..0, INTERNAL);
 
         self.write_req_tx
             .send((self.remote_socket, buffer))
@@ -45,9 +47,9 @@ impl IReadWriteClose for UdpConn {
     async fn read_exact(&mut self, _buf: &mut [u8]) -> Result<()> {
         Ok(())
     }
+
     async fn recv_msg(&mut self) -> Result<Vec<u8>> {
         // This is essentially a copy of read
-
         Ok(self.socket_mpsc_rx.recv().await.unwrap())
     }
 
