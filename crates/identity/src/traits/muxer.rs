@@ -10,7 +10,7 @@ pub static INSTANT: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 #[async_trait]
 pub trait IMuxedConn: Send + Sync {
-    async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<()>;
+    async fn handle_incoming(&mut self, frames: Vec<u8>) -> Result<bool>;
     async fn conn_handler(
         &mut self,
         peer_id: &str,

@@ -1,3 +1,5 @@
+- `tokio::time::sleep(Duration<_>)`, only suspends the async task/future that hits this line, and `std::thread::sleep(Duration<_>)`, suspends the whole main thread.
+
 - In `Udp`, if a 3000 bytes packets is in arrival, and split into fragments. then all fragments must arrive, if even one fragment is lost, then the entire packet is lost.
 
 - `rtt` behaviour in ping experiments:

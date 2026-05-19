@@ -1,11 +1,14 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
+use crate::udp::{
+    conn::UdpConn,
+    headers::{deserialize_udp_packet, serialize_udp_packet, UdpPacketFlag},
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use identity::{
     multiaddr::Multiaddr,
     traits::{core::IReadWriteClose, transport::ITransport},
 };
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
     net::UdpSocket,
     sync::{
@@ -13,14 +16,11 @@ use tokio::{
         Mutex,
     },
 };
-use tracing::{debug, error, info};
-
-use crate::udp::{
-    conn::UdpConn,
-    headers::{deserialize_udp_packet, serialize_udp_packet, UdpPacketFlag},
-};
+use tracing::error;
 
 type OutgoingFrame = (SocketAddr, Vec<u8>);
+const INTERNAL: [u8; 16] = *b"internal-payload";
+
 #[derive(Clone)]
 pub struct UdpTransport {
     listener: Arc<UdpSocket>,
@@ -39,6 +39,36 @@ impl UdpTransport {
         Ok(addr)
     }
 
+    pub async fn handle_incoming(&self, data: &[u8], remote_socket: SocketAddr) -> Result<()> {
+        let (flag, payload) = match deserialize_udp_packet(data) {
+            Some((flag, payload)) => (flag, payload),
+            None => return Ok(()),
+        };
+
+        match flag {
+            UdpPacketFlag::Connect => {
+                self.new_peer_tx.send(remote_socket).await.unwrap();
+            }
+            UdpPacketFlag::Disconnect => {
+                // update the peerstore, clean the udp_Conn
+                let mut peerstore = self.peerstore.lock().await;
+                peerstore.remove(&remote_socket);
+                return Ok(());
+            }
+            UdpPacketFlag::General => {
+                // fetch the udp_conn and transmit the packet
+                let udp_conn_tx = {
+                    let peerstore = self.peerstore.lock().await;
+                    peerstore.get(&remote_socket).cloned()
+                };
+
+                udp_conn_tx.unwrap().send(payload).await.unwrap();
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn io_loop(&self, mut write_req_rx: Receiver<OutgoingFrame>) -> Result<()> {
         let mut buffer = vec![0u8; 1500]; // typical MTU size
         loop {
@@ -46,36 +76,15 @@ impl UdpTransport {
                 Ok((len, remote_socket)) = self.listener.recv_from(&mut buffer) => {
                     let data = &buffer[0..len];
 
-                    let (flag, payload) = match deserialize_udp_packet(data) {
-                        Some((flag, payload)) => (flag, payload),
-                        None => continue,
-                    };
-
-                    match flag {
-                        UdpPacketFlag::Connect => {
-                            info!("UDP-CONNECTION: {}", String::from_utf8_lossy(&payload));
-                            self.new_peer_tx.send(remote_socket).await.unwrap();
-                        },
-                        UdpPacketFlag::Disconnect => {
-                            // update the peerstore, clean the udp_Conn
-                            let mut peerstore = self.peerstore.lock().await;
-                            peerstore.remove(&remote_socket);
-                            debug!("Peer removed from UDP peerstore");
-                            continue;
-                        },
-                        UdpPacketFlag::General => {
-                            // fetch the udp_conn and transmit the packet
-                            let udp_conn_tx = {
-                                let peerstore = self.peerstore.lock().await;
-                                peerstore.get(&remote_socket).cloned()
-                            };
-
-                            udp_conn_tx.unwrap().send(payload).await.unwrap();
-                        },
-                    }
+                    self.handle_incoming(data, remote_socket).await.unwrap();
                 }
 
                 Some((socket, frame)) = write_req_rx.recv() => {
+                    if frame.starts_with(&INTERNAL) {
+                        self.handle_incoming(&frame[INTERNAL.len()..], socket).await.unwrap();
+                        continue;
+                    }
+
                     self.listener.send_to(frame.as_slice(), socket).await.unwrap();
                 }
             }
@@ -117,7 +126,6 @@ impl ITransport<UdpConn> for UdpTransport {
         tokio::spawn(async move {
             arc_transport.io_loop(write_req_rx).await.unwrap();
         });
-        // tokio::time::sleep(Duration::from_millis(1000)).await;
 
         Ok(transport)
     }
@@ -137,6 +145,8 @@ impl ITransport<UdpConn> for UdpTransport {
             let mut peerstore = self.peerstore.lock().await;
             peerstore.insert(socket_addr, socket_mpsc_tx);
         }
+
+        // TODO: This could all be done in UdpConn::new()
         let mut udp_conn = UdpConn {
             write_req_tx: self.write_req_tx.clone(),
             socket_mpsc_rx,
@@ -145,11 +155,13 @@ impl ITransport<UdpConn> for UdpTransport {
 
         udp_conn.write(b"peerstore_updated").await.unwrap();
 
+        // ------------------------------------
+
         Ok((udp_conn, socket_addr))
     }
 
     async fn dial(&self, addr: &Multiaddr) -> Result<UdpConn> {
-        let (remote_socket_addr, remote_peer_id) = extract_socket_addr(addr).unwrap();
+        let (remote_socket_addr, _) = extract_socket_addr(addr).unwrap();
         let local_peer_id = self.local_peer_id.as_bytes().to_vec();
 
         let packet = serialize_udp_packet(local_peer_id, UdpPacketFlag::Connect);
@@ -166,8 +178,7 @@ impl ITransport<UdpConn> for UdpTransport {
             peerstore.insert(remote_socket_addr, socket_mpsc_tx);
         }
 
-        info!("UDP-CONNECTION: {}", remote_peer_id);
-
+        // TODO: This could all be done in UdpConn::new()
         let mut upd_conn = UdpConn {
             write_req_tx: self.write_req_tx.clone(),
             socket_mpsc_rx,
@@ -176,6 +187,7 @@ impl ITransport<UdpConn> for UdpTransport {
 
         let ack = upd_conn.recv_msg().await.unwrap();
         assert_eq!(ack, b"peerstore_updated");
+        // ------------------------------------
 
         Ok(upd_conn)
     }
