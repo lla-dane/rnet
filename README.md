@@ -1,4 +1,4 @@
-continued at, https://github.com/rnet-stack/rnet
+continued at, https://github.com/rnet-stack/rnet-p2p
 
 # rnet -- A modular P2P networking stack in Rust
 
